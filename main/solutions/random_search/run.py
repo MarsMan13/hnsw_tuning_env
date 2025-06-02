@@ -1,13 +1,10 @@
-from main.solutions import print_optimal_hyperparameters
+from main.solutions import postprocess_results, print_optimal_hyperparameters
 from static.ground_truths import GroundTruth
-from main.constants import IMPL, DATASET, SEED, TUNING_BUDGET
-from main.utils import plot_timestamp, save_search_results
+from main.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN
 import random
 
-RECALL_MIN = 0.90
-
-def run(recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET):
-    gd = GroundTruth(impl=IMPL, dataset=DATASET)
+def run(impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET):
+    gd = GroundTruth(impl=impl, dataset=dataset)
     random.seed(SEED)
     results = []
     while True:
@@ -19,10 +16,14 @@ def run(recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET):
             print(f"Tuning time out")
             break
         results.append(((M, efC, efS), (gd.tuning_time, recall, qps, total_time, build_time, index_size)))
-    print_optimal_hyperparameters(results, recall_min=recall_min)
     return results
 
 if __name__ == "__main__":
-    results = run()
-    save_search_results(results, solution="brute_force", filename=f"random_search_{IMPL}_{DATASET}_{SEED}.png")
-    plot_timestamp(results, solution="brute_force", filename=f"random_search_{IMPL}_{DATASET}_{SEED}.png", min_recall=0.95)
+    for RECALL_MIN in [0.90, 0.95, 0.99]:
+        # for IMPL in ["hnswlib", "faiss"]:
+        for IMPL in ["hnswlib"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
+            for DATASET in ["nytimes-256-angular"]:
+                results = run(IMPL, DATASET, RECALL_MIN, TUNING_BUDGET)
+                print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
+                postprocess_results(results, solution="random_search", impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)

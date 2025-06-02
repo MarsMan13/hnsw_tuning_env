@@ -6,7 +6,7 @@ from botorch.optim import optimize_acqf
 from botorch.fit import fit_gpytorch_model
 from gpytorch.mlls.sum_marginal_log_likelihood import SumMarginalLogLikelihood
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from utils import *
+from main.solutions.vd_tuner.utils import *
 from botorch.models.transforms.outcome import Standardize
 from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.utils.multi_objective.box_decompositions.non_dominated import (

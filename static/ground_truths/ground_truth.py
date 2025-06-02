@@ -36,9 +36,13 @@ class GroundTruth:
         self.data = self.load_ground_truths(impl, dataset)
         self.init()
         self.tuning_time = 0.0
-        self.cache = dict() # (M, efC, efS) -> (recall, qps, total_time, build_time, index_size)
+        self.current_hp = (0, 0)
+        self.searched_cache = dict()    # (M, efC, efS) -> (recall, qps, total_time, build_time, index_size)
+        self.searched_timestamp = dict() # (M, efC, efS) -> T_record
+        self._get_count = 0
+        self.__last_time = 0.0
         
-    def init(self, sigma=1):
+    def init(self, sigma=1.5):
         """
         Initialize interpolators for recall, QPS, total time, and index size,
         using Gaussian smoothing and ground truth data.
@@ -61,19 +65,6 @@ class GroundTruth:
         def smooth_metric(metric_values):
             smoothed_values = np.zeros_like(metric_values)
             for efS in unique_efS:
-                # # Build 2D matrix for fixed efS
-                # matrix = np.zeros((len(unique_M), len(unique_efC)))
-                # mask = []
-                # for idx, (M, efC, this_efS) in enumerate(configs):
-                #     if this_efS == efS:
-                #         i, j = M_index[M], efC_index[efC]
-                #         matrix[i, j] = metric_values[idx]
-                #         mask.append((idx, i, j))
-                # # Apply Gaussian filter
-                # smoothed_matrix = gaussian_filter(matrix, sigma=sigma)
-                # # Map back
-                # for idx, i, j in mask:
-                #     smoothed_values[idx] = smoothed_matrix[i, j]
                 matrix = np.full((len(unique_M), len(unique_efC)), np.nan)
                 mask = []
 
@@ -85,7 +76,6 @@ class GroundTruth:
                 smoothed_matrix = masked_gaussian_filter(matrix, sigma=sigma)
                 for idx, i, j in mask:
                     smoothed_values[idx] = smoothed_matrix[i, j]
-
             return smoothed_values
         
         # Step 3: smooth each metric
@@ -139,17 +129,9 @@ class GroundTruth:
     def get(self, M, efC, efS, tracking_time=True):
         if efS == 0:
             return 0.0, 0.0, 0.0, 0.0, 0
-        if (M, efC, efS) in self.cache:
-            return self.cache[(M, efC, efS)]
-        """
-        Get the interpolated values for the given parameters.
-        Args:
-            M (int): The number of neighbors.
-            efC (int): The efC parameter.
-            efS (int): The efS parameter.
-        Returns:
-            tuple: A tuple containing the interpolated values for recall, QPS, total time, and index size.
-        """
+        if (M, efC, efS) in self.searched_cache:
+            return self.searched_cache[(M, efC, efS)]
+        self._get_count += 1
         try:
             recall = self.__safe_interp(self.interp_recall(M, efC, efS))
             qps = self.__safe_interp(self.interp_qps(M, efC, efS))
@@ -160,21 +142,26 @@ class GroundTruth:
             return 0.0, 0.0, 0.0, 0.0, 0
         if tracking_time:
             self.tuning_time += total_time
-            self.cache[(M, efC, efS)] = (recall, qps, total_time, build_time, index_size)
+            if (M, efC) == self.current_hp:
+                self.tuning_time -= build_time
+            self.searched_cache[(M, efC, efS)] = (recall, qps, total_time, build_time, index_size)
+            self.searched_timestamp[(M, efC, efS)] = self.tuning_time
+        self.current_hp = (M, efC)
         return recall, qps, total_time, build_time, int(index_size)
-   
-    def get_efS(self, M, efC, target_recall, method="binary", efS_min=32, efS_max=1024, tolerance=TOLERANCE):
+    
+    def rollback(self):
+        self.tuning_time -= (self.tuning_time - self.__last_time)
+        self.__last_time = self.tuning_time
+    
+    def get_efS(self, M, efC, target_recall, method="binary", efS_min=32, efS_max=1024, tolerance=TOLERANCE, skip_time=False):
+        if not skip_time : self.__last_time = self.tuning_time
         recall_min = self.get(M, efC, efS_min)[0]
         if recall_min >= target_recall:
             return efS_min
-
-        recall_max = self.get(M, efC, efS_max)[0]
-        if recall_max < target_recall:
-            return 0
-
+        ####
         best_efS = None
+        best_recall = 0.0
         best_diff = float("inf")
-
         if method == "linear":
             for efS in range(efS_min, efS_max + 1):
                 recall, *_ = self.get(M, efC, efS)
@@ -191,21 +178,31 @@ class GroundTruth:
             while left <= right:
                 mid = (left + right) // 2
                 recall, *_ = self.get(M, efC, mid)
+                # CHECK IF RECALL IS ZERO
                 if recall == 0.0:
                     left = mid + 1
                     continue
+                # CHECK IF TARGET RECALL IS REACHED
                 diff = abs(recall - target_recall)
-                if diff < best_diff:
+                if diff < best_diff and recall >= target_recall:
                     best_diff = diff
                     best_efS = mid
-                    if diff < tolerance:
-                        break
+                    best_recall = recall 
+                    #! OPTIMIZATION
+                    # if diff <= tolerance:
+                    #     break
+                # MOVE BOUNDARIES
                 if recall < target_recall:
                     left = mid + 1
                 else:
                     right = mid - 1
         else:
             raise ValueError(f"Unknown method '{method}'")
-
+        if best_recall < target_recall:
+            return 0
+        # print(f"\tbest_efS: {best_efS} {best_recall:.4f}")
         return best_efS if best_efS is not None else 0
 
+if __name__ == "__main__":
+    gd = GroundTruth("faiss", "nytimes-256-angular")
+    print(gd.get(48, 202, 32))
