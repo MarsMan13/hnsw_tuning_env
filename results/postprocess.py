@@ -15,11 +15,13 @@ def process_file():
 
 def process_combi():
     SOLUTIONS = [
+        "grid_search",
+        # "grid_search_heuristic",
         "random_search",
-        "random_search_heuristic",
+        # "random_search_heuristic",
+        "our_solution7",
         # "vd_tuner",
         # "our_solution4",
-        "our_solution5",
         # "our_solution6",
     ]
     IMPLS = [
@@ -37,7 +39,7 @@ def process_combi():
     RECALL_MINS = [
         0.90,
         0.95,
-        # 0.99,
+        0.975,
     ]
     for impl in IMPLS:
         for dataset in DATASETS:
@@ -51,6 +53,7 @@ def process_combi():
                     results_combi[solution] = results
                 plot_multi_accumulated_timestamp(
                     results=results_combi, 
+                    dirname="naive",
                     filename=f"{impl}_{dataset}_{recall_min}_accumulated.png", 
                     recall_min=recall_min,
                     tuning_budget=TUNING_BUDGET,

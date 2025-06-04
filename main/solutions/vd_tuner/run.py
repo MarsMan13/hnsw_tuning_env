@@ -38,11 +38,11 @@ def run(impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_
     return results
 
 if __name__ == '__main__':
-    for RECALL_MIN in [0.90]:
-        # for IMPL in ["hnswlib", "faiss"]:
-        for IMPL in ["hnswlib"]:
-            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["test-100-angular"]:
+    for RECALL_MIN in [0.90, 0.95, 0.975]:
+        for IMPL in ["hnswlib", "faiss"]:
+        # for IMPL in ["hnswlib"]:
+            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
+            # for DATASET in ["test-100-angular"]:
                 results = run(IMPL, DATASET, RECALL_MIN, TUNING_BUDGET, use_efS=True)
                 print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
                 postprocess_results(results, solution="vd_tuner", impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)

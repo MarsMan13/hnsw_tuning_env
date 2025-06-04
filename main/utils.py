@@ -70,7 +70,6 @@ def get_local_optimal_hyperparameter(results, recall_min=0.95):
             if M == cur_M and qps > max_qps and recall >= recall_min:
                 max_qps = qps
                 if type(tuning_time) is not float:
-                    print("check", type(tuning_time))
                     local_opt = ((M, efC, efS), 
                                 (round(tuning_time.item(), 2), round(recall.item(), 3), round(qps.item(), 2),
                                 round(total_time.item(), 2), round(build_time.item(), 2), int(index_size)))
@@ -83,8 +82,8 @@ def get_local_optimal_hyperparameter(results, recall_min=0.95):
         print(f"No hyperparameters found with recall >= {recall_min}")
     return get_local_optimal_hyperparameters
 
-def plot_multi_accumulated_timestamp(results, filename, recall_min, tuning_budget, ylabel='QPS'):
-    save_path = _save_path("accumulated_timestamp", "multi", filename)
+def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min, tuning_budget, ylabel='QPS'):
+    save_path = _save_path("accumulated_timestamp", dirname, filename)
     
     for solution, result in results.items():
         filtered = [

@@ -11,17 +11,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def masked_gaussian_filter(matrix, sigma):
-    # 실측값이 있는 위치는 1, 없는 곳은 0인 마스크 생성
     mask = ~np.isnan(matrix)  # True where value exists
-
-    # NaN 대신 0으로 채운 필터 대상
     filled = np.nan_to_num(matrix, nan=0.0)
-
-    # 값과 마스크 각각에 gaussian_filter 적용
+    
     numerator = gaussian_filter(filled, sigma=sigma)
     denominator = gaussian_filter(mask.astype(float), sigma=sigma)
 
-    # 정규화된 결과: 실측값이 있을수록 평균 보정
     with np.errstate(divide='ignore', invalid='ignore'):
         smoothed = np.divide(numerator, denominator)
         smoothed[denominator == 0] = np.nan  # 실제 값 없는 위치는 NaN 유지

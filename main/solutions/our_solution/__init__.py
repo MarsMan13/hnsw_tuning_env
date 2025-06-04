@@ -12,7 +12,7 @@ def get_exploitation_targets(results):
     for (M, efC, efS), (_, _, qps, *_) in results:
         if qps < 1.0:  continue
         lst = targets_for_M.setdefault(M, [])
-        lst.append((efC, qps, efS))
+        lst.append((efC, qps.item(), efS))
         lst.sort(key=itemgetter(1), reverse=True)
         if len(lst) > 2:
             lst.pop()
@@ -33,8 +33,6 @@ def get_exploitation_targets(results):
     # Step 4 : Linear Score Allocation
     min_qps = ranked[-1][1][1]
     max_qps = ranked[0][1][1]
-    print(f"len(ranked) : {len(ranked)}")
-    print(ranked)
     normalized_scores = [
         (first[1] - min_qps) / (max_qps - min_qps)
         for _, first, _ in ranked

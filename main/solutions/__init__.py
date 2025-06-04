@@ -1,5 +1,5 @@
 from main.constants import SEED
-from main.utils import get_local_optimal_hyperparameter, get_optimal_hyperparameter, plot_efS_3d, plot_searched_points_3d, plot_timestamp, save_search_results
+from main.utils import get_local_optimal_hyperparameter, get_optimal_hyperparameter, plot_efS_3d, plot_multi_accumulated_timestamp, plot_searched_points_3d, plot_timestamp, save_search_results
 
 def print_optimal_hyperparameters(results, recall_min):
     opt_hp = get_optimal_hyperparameter(results, recall_min=recall_min)

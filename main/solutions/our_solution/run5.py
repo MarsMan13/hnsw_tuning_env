@@ -14,7 +14,7 @@ def exploration_phase(results, ground_truth, recall_min, exploration_budget):
     efC_left, efC_right = EFC_MIN, EFC_MAX 
     efS_min, efS_max = EFS_MIN, EFS_MAX
     M_left, M_right = M_MIN, M_MAX
-    appended_hp = set()
+    searched_hp = set()
     M_efC = dict()  # M -> (efC_min, efC_max) of the best performance
     M_efS = dict()  # M -> (efS_min, efC_max) of the best performance
     try:
@@ -45,12 +45,12 @@ def exploration_phase(results, ground_truth, recall_min, exploration_budget):
                         raise TimeoutError("tuning time out")
                     perf_mid1 = gd.get(M, efC_mid1, efS_mid1)
                     perf_mid2 = gd.get(M, efC_mid2, efS_mid2)
-                    if (M, efC_mid1, efS_mid1) not in appended_hp:
+                    if (M, efC_mid1, efS_mid1) not in searched_hp:
                         results.append(((M, efC_mid1, efS_mid1), (gd.tuning_time, *perf_mid1)))
-                        appended_hp.add((M, efC_mid1, efS_mid1))
-                    if (M, efC_mid2, efS_mid2) not in appended_hp:
+                        searched_hp.add((M, efC_mid1, efS_mid1))
+                    if (M, efC_mid2, efS_mid2) not in searched_hp:
                         results.append(((M, efC_mid2, efS_mid2), (gd.tuning_time, *perf_mid2)))
-                        appended_hp.add((M, efC_mid2, efS_mid2))
+                        searched_hp.add((M, efC_mid2, efS_mid2))
                     if perf_mid1[1] <= perf_mid2[1]:
                         efC_left = efC_mid1
                         efS_min = efS_mid1
