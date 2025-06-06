@@ -5,7 +5,7 @@ from scipy.ndimage import gaussian_filter
 from csv import reader
 import numpy as np
 
-from main.constants import TOLERANCE
+from main.constants import EFS_MIN, TOLERANCE
         
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -122,7 +122,7 @@ class GroundTruth:
         return value
 
     def get(self, M, efC, efS, tracking_time=True):
-        if efS == 0:
+        if efS < EFS_MIN:
             return 0.0, 0.0, 0.0, 0.0, 0
         if (M, efC, efS) in self.searched_cache:
             return self.searched_cache[(M, efC, efS)]
@@ -148,17 +148,59 @@ class GroundTruth:
         self.tuning_time -= (self.tuning_time - self.__last_time)
         self.__last_time = self.tuning_time
     
-    def get_efS(self, M, efC, target_recall, method="binary", efS_min=32, efS_max=1024, tolerance=TOLERANCE, skip_time=False):
-        if not skip_time : self.__last_time = self.tuning_time
+    def _get_efS_for_qps(self, M, efC, target_qps, method, efS_min, efS_max, tolerance):
+        qps_min = self.get(M, efC, efS_min)[1]
+        if qps_min < target_qps:
+            return 0.0
+        best_efS = None
+        best_qps = 0.0
+        best_diff = float("inf")
+        if method == "linear":
+            for efS in range(efS_min, efS_max+1):
+                recall, qps, *_ = self.get(M, efC, efS)
+                if qps == 0.0:
+                    continue
+                diff = abs(qps - target_qps)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_efS = efS
+                    if diff < tolerance:
+                        break
+        elif method == "binary":
+            left, right = efS_min, efS_max
+            while left <= right:
+                mid = (left + right) // 2
+                recall, qps, *_ = self.get(M, efC, mid)
+                if qps == 0.0:
+                    right = mid - 1
+                    continue
+                diff = abs(qps - target_qps)
+                if diff < best_diff and qps >= target_qps:
+                    best_diff = diff
+                    best_efS = mid
+                    best_qps = qps
+                    if diff <= tolerance:
+                        break
+                if qps < target_qps:
+                    right = mid - 1
+                else:
+                    left = mid + 1
+        else:
+            raise ValueError(f"Unknown method '{method}'")
+        if best_qps < target_qps:
+            return 0.0
+        return best_efS if best_efS else 0.0        
+        
+    
+    def _get_efS_for_recall(self, M, efC, target_recall, method, efS_min, efS_max, tolerance):
         recall_min = self.get(M, efC, efS_min)[0]
         if recall_min >= target_recall:
             return efS_min
-        ####
         best_efS = None
         best_recall = 0.0
         best_diff = float("inf")
         if method == "linear":
-            for efS in range(efS_min, efS_max + 1):
+            for efS in range(efS_min, efS_max+1):
                 recall, *_ = self.get(M, efC, efS)
                 if recall == 0.0:
                     continue
@@ -173,20 +215,16 @@ class GroundTruth:
             while left <= right:
                 mid = (left + right) // 2
                 recall, *_ = self.get(M, efC, mid)
-                # CHECK IF RECALL IS ZERO
                 if recall == 0.0:
                     left = mid + 1
                     continue
-                # CHECK IF TARGET RECALL IS REACHED
                 diff = abs(recall - target_recall)
                 if diff < best_diff and recall >= target_recall:
                     best_diff = diff
                     best_efS = mid
-                    best_recall = recall 
-                    #! OPTIMIZATION
-                    # if diff <= tolerance:
-                    #     break
-                # MOVE BOUNDARIES
+                    best_recall = recall
+                    if diff <= tolerance:   #! OPTIMIZED LOGIC
+                        break
                 if recall < target_recall:
                     left = mid + 1
                 else:
@@ -194,10 +232,22 @@ class GroundTruth:
         else:
             raise ValueError(f"Unknown method '{method}'")
         if best_recall < target_recall:
-            return 0
-        # print(f"\tbest_efS: {best_efS} {best_recall:.4f}")
-        return best_efS if best_efS is not None else 0
-
+            return 0.0
+        return best_efS if best_efS else 0.0
+    
+    def get_efS(self, M, efC, target_recall=None, target_qps=None, method="binary", efS_min=32, efS_max=1024, tolerance=TOLERANCE, skip_time=False):
+        if target_recall is None and target_qps is None:
+            raise ValueError("Either target_recall or target_qps must be provided.")
+        if target_recall and target_qps:
+            raise ValueError("Only one of target_recall or target_qps can be provided.")
+        # END OF VALIDATION
+        if target_recall:
+            return self._get_efS_for_recall(M, efC, target_recall, method, efS_min, efS_max, tolerance)
+        if target_qps:
+            return self._get_efS_for_qps(M, efC, target_qps, method, efS_min, efS_max, tolerance)
+        raise ValueError("Critical error: this should never happen.") 
+        
+        
 if __name__ == "__main__":
     gd = GroundTruth("faiss", "nytimes-256-angular")
     print(gd.get(48, 202, 32))

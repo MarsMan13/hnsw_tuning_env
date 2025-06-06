@@ -2,24 +2,48 @@ from main.constants import DATASET, IMPL, TUNING_BUDGET, RECALL_MIN
 from main.solutions import postprocess_results, print_optimal_hyperparameters
 from static.ground_truths import GroundTruth
 
-def run(impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET):
+def run(impl=IMPL, dataset=DATASET, recall_min=None , qps_min=None, tuning_budget=TUNING_BUDGET):
+    if not recall_min and not qps_min:
+        raise ValueError("Either recall_min or qps_min must be specified.")
+    if recall_min and qps_min:
+        raise ValueError("Only one of recall_min or qps_min should be specified.")
     gd = GroundTruth(impl, dataset)
     results = []
     for M in range(4, 64+1, 1):
         for efC in range(16, 512+1, 1):
-            efS = gd.get_efS(M, efC, recall_min, method="binary")
+            if recall_min:
+                efS = gd.get_efS(M, efC, target_recall=recall_min, method="binary")
+            elif qps_min:
+                efS = gd.get_efS(M, efC, target_qps=qps_min, method="binary")
             recall, qps, total_time, build_time, index_size = gd.get(M=M, efC=efC, efS=efS, tracking_time=False)
             gd.tuning_time += 100.0
             results.append(((M, efC, efS), (gd.tuning_time, recall, qps, total_time, build_time, index_size)))
     return results
-    
-if __name__ == "__main__":
+
+def recall_min():
     tuning_budget = float("inf")
-    for RECALL_MIN in [0.90, 0.95]:
+    for RECALL_MIN in [0.90, 0.95, 0.975]:
+        for IMPL in ["hnswlib", "faiss"]:
+        # for IMPL in ["faiss"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
+            for DATASET in ["nytimes-256-angular"]:
+                results = run(IMPL, DATASET, recall_min=RECALL_MIN, tuning_budget=tuning_budget)
+                print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
+                postprocess_results(results, solution="brute_force", impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=tuning_budget)
+
+def qps_min():
+    tuning_budget = float("inf")
+    for QPS_MIN in [2500, 5000, 10000, 25000]:
+    # for QPS_MIN in [2500]:
         for IMPL in ["hnswlib", "faiss"]:
         # for IMPL in ["faiss"]:
             for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
             # for DATASET in ["nytimes-256-angular"]:
-                results = run(IMPL, DATASET, RECALL_MIN, tuning_budget)
-                print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-                postprocess_results(results, solution="brute_force", impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, tuning_budget=tuning_budget)
+                results = run(IMPL, DATASET, qps_min=QPS_MIN, tuning_budget=tuning_budget)
+                print_optimal_hyperparameters(results, qps_min=QPS_MIN)
+                postprocess_results(results, solution="brute_force", impl=IMPL, dataset=DATASET, qps_min=QPS_MIN, tuning_budget=tuning_budget)
+
+
+if __name__ == "__main__":
+    recall_min()
+    # qps_min()

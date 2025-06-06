@@ -1,11 +1,9 @@
-from main.constants import IMPL, TUNING_BUDGET
+from main.constants import TUNING_BUDGET
 from main.utils import filename_builder, load_search_results, \
     plot_multi_accumulated_timestamp, plot_searched_points_3d, plot_timestamp
-from main.solutions import postprocess_results
 
 def process_file():
     SOLUTION = "vd_tuner"
-    IMPL = "hnswlib"
     FILENAME = "vd_tuner_hnswlib_nytimes-256-angular_8h_False_3.csv"
     TUNING_BUDGET = 3600 * 8
     RECALL_MIN = 0.95

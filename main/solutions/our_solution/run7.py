@@ -120,9 +120,9 @@ if __name__ == "__main__":
     # for RECALL_MIN in [0.95]:
         for IMPL in ["hnswlib", "faiss"]:
         # for IMPL in ["hnswlib"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
-                            "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            # for DATASET in ["nytimes-256-angular"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
+            #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
+            for DATASET in ["nytimes-256-angular"]:
                 results = run(IMPL, DATASET, RECALL_MIN, TUNING_BUDGET)
                 print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
                 postprocess_results(
