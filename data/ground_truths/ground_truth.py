@@ -31,6 +31,7 @@ class GroundTruth:
     def __init__(self, impl: str, dataset: str, sampling_count=None):
         self.impl = impl
         self.dataset = dataset
+        self.__sampling_count = sampling_count
         self.data = self.load_ground_truths(impl, dataset)
         self.init()
         self.tuning_time = 0.0
@@ -39,7 +40,6 @@ class GroundTruth:
         self.searched_timestamp = dict() # (M, efC, efS) -> T_record
         self._get_count = 0
         self.__last_time = 0.0
-        self.__sampling_count = sampling_count
         
     def init(self, sigma=1.5):
         """

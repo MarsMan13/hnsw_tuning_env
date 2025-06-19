@@ -25,8 +25,9 @@ def postprocess_results(results, solution, impl, dataset, tuning_budget, recall_
         recall_min=recall_min, qps_min=qps_min, tuning_budget=tuning_budget, seed=seed
     )
     plot_multi_accumulated_timestamp(
-        results, 
-        solution=solution, filename=f"{solution}_multi_accumulated_timestamp_{impl}_{dataset}_{recall_min}r_{qps_min}q.png", 
+        {solution: results},
+        dirname=solution,
+        filename=f"{solution}_multi_accumulated_timestamp_{impl}_{dataset}_{recall_min}r_{qps_min}q.png", 
         recall_min=recall_min, qps_min=qps_min, tuning_budget=tuning_budget, seed=seed
     )
     try:

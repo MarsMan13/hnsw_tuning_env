@@ -50,7 +50,7 @@ def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
     if recall_min is not None:
         best_qps = 0.0
         for (M, efC, efS), (tuning_time, recall, qps, total_time, build_time, index_size) in results:
-            if recall >= (recall_min - TOLERANCE - 1e-5) and qps > best_qps:
+            if recall >= recall_min and qps > best_qps:
                 best_qps = qps
                 optimal_hyperparameters = ((M, efC, efS), (
                     round(float(tuning_time), 2), round(float(recall), 3), round(float(qps), 2),
@@ -60,7 +60,7 @@ def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
     elif qps_min is not None:
         best_recall = 0.0
         for (M, efC, efS), (tuning_time, recall, qps, total_time, build_time, index_size) in results:
-            if qps >= (qps_min - TOLERANCE - 1e-5) and recall > best_recall:
+            if qps >= qps_min and recall > best_recall:
                 best_recall = recall
                 optimal_hyperparameters = ((M, efC, efS), (
                     round(float(tuning_time), 2), round(float(recall), 3), round(float(qps), 2),
