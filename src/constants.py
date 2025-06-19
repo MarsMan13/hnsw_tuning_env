@@ -1,0 +1,12 @@
+M_MIN, M_MAX = 4, 64
+EFC_MIN, EFC_MAX = 8, 512
+EFS_MIN, EFS_MAX = 32, 1024
+TOLERANCE = 0.005
+####
+IMPL = "hnswlib"
+DATASET = "nytimes-256-angular"
+RECALL_MIN = 0.90
+####
+SEED = 10
+TUNING_BUDGET = 3600 * 12   # hours
+# TUNING_BUDGET = 11 * 300 * 1    # hours

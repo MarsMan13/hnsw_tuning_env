@@ -1,4 +1,4 @@
-name: vdtuner
+name: tuning_env
 channels:
   - defaults
 dependencies:
@@ -42,8 +42,8 @@ dependencies:
   - pip:
     - argon2-cffi==23.1.0
     - argon2-cffi-bindings==21.2.0
-    - borch==0.10.0
-    - botorch==0.10.0
+    - borch=0.1.6
+    - botorch=0.9.3
     - certifi==2025.4.26
     - cffi==1.17.1
     - charset-normalizer==3.4.1

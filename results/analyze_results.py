@@ -1,7 +1,7 @@
 from matplotlib.pylab import f
 from matplotlib.pyplot import step
-from main.utils import load_search_results
-from main.solutions import postprocess_results, print_optimal_hyperparameters
+from src.utils import load_search_results
+from src.solutions import postprocess_results, print_optimal_hyperparameters
 import argparse
 
 def parse_args():
