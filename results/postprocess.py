@@ -21,7 +21,8 @@ def _process_single_metric(
     dataset: str, 
     solutions: list, 
     recall_min: float = None, 
-    qps_min: int = None
+    qps_min: int = None,
+    sampling_count: int = None
 ):
     """
     Helper function to process results for a single metric (either recall_min or qps_min).
@@ -35,7 +36,7 @@ def _process_single_metric(
         filename = filename_builder(
             solution, impl, dataset, recall_min, qps_min
         )
-        results = load_search_results(solution, filename, seed=MOCK_SEED)
+        results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
         results_combi[solution] = results
 
     #* 2. Determine metric type and value for file naming and plotting
@@ -50,6 +51,8 @@ def _process_single_metric(
         recall_min=recall_min,
         qps_min=qps_min,
         tuning_budget=TUNING_BUDGET,
+        seed=MOCK_SEED,
+        sampling_count=sampling_count,
     )
 
     #* 4. Save Optimal Hyperparameters of each solution
@@ -63,6 +66,7 @@ def _process_single_metric(
         recall_min=recall_min,
         qps_min=qps_min,
         seed=MOCK_SEED,
+        sampling_count=sampling_count,
     )
     
     # ! 5) TODO for the combined logic can be placed here
@@ -79,14 +83,21 @@ def main():
     ]
     DATASETS = [
         "nytimes-256-angular",
+        "glove-100-angular",
+        "sift-128-euclidean",
     ]
-    RECALL_MINS = [0.95]
-    QPS_MINS = [10000]
-
+    SAMPLING_COUNT = [
+        10,
+        # # # 1, 
+        # # 3, 
+        # 5, 
+    ]
+    RECALL_MINS = [0.90, 0.95]
+    QPS_MINS = []
     # Create a single combined iterator for all jobs
-    all_iters = itertools.product(IMPLS, DATASETS)
+    all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)
 
-    for impl, dataset in all_iters:
+    for impl, dataset, sampling_count in all_iters:
         print(f"--- Processing {impl} for {dataset} ---")
 
         # Process for each recall_min value
@@ -96,7 +107,8 @@ def main():
                 impl=impl, 
                 dataset=dataset, 
                 solutions=SOLUTIONS, 
-                recall_min=recall_min
+                recall_min=recall_min,
+                sampling_count=sampling_count
             )
 
         # Process for each qps_min value
@@ -106,7 +118,8 @@ def main():
                 impl=impl,
                 dataset=dataset,
                 solutions=SOLUTIONS,
-                qps_min=qps_min
+                qps_min=qps_min,
+                sampling_count=sampling_count
             )
                 
 if __name__ == "__main__":

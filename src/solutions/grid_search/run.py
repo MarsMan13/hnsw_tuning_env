@@ -4,17 +4,20 @@ from src.constants import EFC_MAX, EFC_MIN, EFS_MAX, EFS_MIN, M_MAX, M_MIN
 from src.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN
 import random
 from tqdm import tqdm
+from joblib import Memory
 
 STEP_M = 2
 STEP_EFC = 16
 STEP_EFS = 16
 
-def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET):
+memory = Memory("/tmp/grid_search_cache", verbose=0)
+@memory.cache
+def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     if not recall_min and not qps_min:
         raise ValueError("Either recall_min or qps_min must be specified.")
     if recall_min and qps_min:
         raise ValueError("Only one of recall_min or qps_min should be specified.")
-    gd = GroundTruth(impl=impl, dataset=dataset)
+    gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     random.seed(SEED)
     results = []
     candidates = [

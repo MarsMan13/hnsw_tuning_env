@@ -1,4 +1,3 @@
-import sys
 import os
 
 from src.solutions import postprocess_results, print_optimal_hyperparameters
@@ -8,15 +7,19 @@ from src.solutions.vd_tuner.utils import MockEnv
 from src.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN
 from data.ground_truths import GroundTruth
 
+from joblib import Memory
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 USE_EFS = False
 
-def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, use_efS=False):
+memory = Memory("/tmp/vd_tuner_cache", verbose=0)
+@memory.cache
+def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, use_efS=False, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     if not recall_min and not qps_min:
         raise ValueError("Either recall_min or qps_min must be specified.")
     if recall_min and qps_min:
         raise ValueError("Only one of recall_min or qps_min should be specified.")
-    gd = GroundTruth(impl=impl, dataset=dataset)
+    gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     knob_path = os.path.join(BASE_DIR, "params/whole_param.json")
     env = MockEnv(model=gd, knob_path=knob_path, tuning_budget=tuning_budget, use_efS=use_efS)
     model = PollingBayesianOptimization(env, seed=SEED)

@@ -5,9 +5,9 @@ from scipy.ndimage import gaussian_filter
 from csv import reader
 import numpy as np
 import random
-from src.constants import SEED
+from src.constants import SEED, MAX_SAMPLING_COUNT
 
-from src.constants import EFS_MIN, TOLERANCE
+from src.constants import EFS_MIN, EFS_MAX, TOLERANCE
         
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -31,7 +31,7 @@ class GroundTruth:
     def __init__(self, impl: str, dataset: str, sampling_count=None):
         self.impl = impl
         self.dataset = dataset
-        self.__sampling_count = sampling_count
+        self.__sampling_count = MAX_SAMPLING_COUNT if sampling_count == None else sampling_count
         self.data = self.load_ground_truths(impl, dataset)
         self.init()
         self.tuning_time = 0.0
@@ -39,13 +39,8 @@ class GroundTruth:
         self.searched_cache = dict()    # (M, efC, efS) -> (recall, qps, total_time, build_time, index_size)
         self.searched_timestamp = dict() # (M, efC, efS) -> T_record
         self._get_count = 0
-        self.__last_time = 0.0
         
     def init(self, sigma=1.5):
-        """
-        Initialize interpolators for recall, QPS, total time, and index size,
-        using Gaussian smoothing and ground truth data.
-        """
         # Step 1: raw data unpacking
         configs = list(self.data.keys())
         points = np.array(configs)  # shape: (N, 3)
@@ -76,14 +71,12 @@ class GroundTruth:
                 for idx, i, j in mask:
                     smoothed_values[idx] = smoothed_matrix[i, j]
             return smoothed_values
-        
         # Step 3: smooth each metric
         recalls = smooth_metric(recalls)
         qpss = smooth_metric(qpss)
         total_times = smooth_metric(total_times)
         build_times = smooth_metric(build_times)
         index_sizes = smooth_metric(index_sizes)
-
         # Step 4: interpolators
         self.interp_recall = LinearNDInterpolator(points, recalls)
         self.interp_qps = LinearNDInterpolator(points, qpss)
@@ -92,14 +85,6 @@ class GroundTruth:
         self.interp_index_size = LinearNDInterpolator(points, index_sizes)
     
     def load_ground_truths(self, impl: str="hnswlib", dataset: str="nytimes"):
-        """
-        Load the ground truths for a given dataset and implementation.
-        Args:
-            impl (str): The implementation to use. Defaults to "hnswlib".
-            dataset (str): The dataset to use. Defaults to "nytimes".
-        Returns:
-            dict: A dictionary containing the ground truths.
-        """
         results = dict()
         filename = f"{impl}/{dataset}.csv"
         filename = os.path.join(BASE_DIR, filename)
@@ -113,13 +98,16 @@ class GroundTruth:
                 _index_size = int(float(row[7]))
                 _build_time = float(row[8])
                 _total_time = float(row[8]) + float(row[9])
-                __recall = ast.literal_eval(row[11])
-                __recall = random.sample(__recall, self.__sampling_count) \
-                    if self.__sampling_count and len(__recall) <= self.__sampling_count else __recall
+                __recall_raw = ast.literal_eval(row[11])
+                __qps_raw = ast.literal_eval(row[12])
+                if self.__sampling_count and len(__recall_raw) >= self.__sampling_count:
+                    sample_indices = random.sample(range(len(__recall_raw)), self.__sampling_count)
+                    __recall = [__recall_raw[i] for i in sample_indices]
+                    __qps = [__qps_raw[i] for i in sample_indices]
+                else:
+                    __recall = __recall_raw
+                    __qps = __qps_raw
                 _recall = np.array(__recall).mean()
-                __qps = ast.literal_eval(row[12])
-                __qps = random.sample(__qps, self.__sampling_count) \
-                    if self.__sampling_count and len(__qps) <= self.__sampling_count else __qps
                 _qps = np.array(__qps).mean()
                 results[(_M, _efC, _efS)] = (_recall, _qps, _total_time, _build_time, _index_size)
         return results
@@ -152,16 +140,11 @@ class GroundTruth:
         self.current_hp = (M, efC)
         return recall, qps, total_time, build_time, int(index_size)
     
-    def rollback(self):
-        self.tuning_time -= (self.tuning_time - self.__last_time)
-        self.__last_time = self.tuning_time
-    
     def _get_efS_for_qps(self, M, efC, target_qps, method, efS_min, efS_max, tolerance):
         qps_min = self.get(M, efC, efS_min)[1]
         if qps_min < target_qps:
             return 0
         best_efS = None
-        best_qps = 0.0
         best_diff = float("inf")
         if method == "linear":
             for efS in range(efS_min, efS_max+1):
@@ -169,11 +152,12 @@ class GroundTruth:
                 if qps == 0.0:
                     continue
                 diff = abs(qps - target_qps)
-                if diff < best_diff:
+                if diff < best_diff and qps >= target_qps:
                     best_diff = diff
                     best_efS = efS
-                    if diff < tolerance:
-                        break
+                    break
+                    # if diff < tolerance:
+                    #     break
         elif method == "binary":
             left, right = efS_min, efS_max
             while left <= right:
@@ -185,18 +169,15 @@ class GroundTruth:
                 diff = abs(qps - target_qps)
                 if diff < best_diff and qps >= target_qps:
                     best_diff = diff
-                    best_efS = mid
-                    best_qps = qps
-                    if diff <= tolerance:
-                        break
+                    best_efS = mid 
+                    # if diff <= tolerance:
+                    #     break
                 if qps < target_qps:
-                    right = mid - 1
+                    right = best_efS - 1
                 else:
-                    left = mid + 1
+                    left = best_efS + 1
         else:
             raise ValueError(f"Unknown method '{method}'")
-        if best_qps < target_qps:
-            return 0
         return best_efS if best_efS else 0 
         
     
@@ -204,9 +185,7 @@ class GroundTruth:
         recall_min = self.get(M, efC, efS_min)[0]
         if recall_min >= target_recall:
             return efS_min
-        # print(f"\t\t{M}, {efC} | {efS_min} ~ {efS_max}")
         best_efS = None
-        best_recall = 0.0
         best_diff = float("inf")
         if method == "linear":
             for efS in range(efS_min, efS_max+1):
@@ -214,17 +193,18 @@ class GroundTruth:
                 if recall == 0.0:
                     continue
                 diff = abs(recall - target_recall)
-                if diff < best_diff:
+                if diff < best_diff and recall >= target_recall:
                     best_diff = diff
                     best_efS = efS
-                    if diff < tolerance:
-                        break
+                    break
+                    # if diff < tolerance:
+                    #     break
         elif method == "binary":
             left, right = efS_min, efS_max
             while left <= right:
                 mid = (left + right) // 2
                 recall, *_ = self.get(M, efC, mid)
-                # print(f"\t\t\t{M:2} | {efC:3} | {mid:4} | {recall:.4f}")
+                # print(f"\t[{M}, {efC}, {mid}] -> {recall}")
                 if recall == 0.0:
                     left = mid + 1
                     continue
@@ -232,8 +212,7 @@ class GroundTruth:
                 if diff < best_diff and recall >= target_recall:
                     best_diff = diff
                     best_efS = mid
-                    best_recall = recall
-                    if diff <= tolerance:   #! OPTIMIZED LOGIC
+                    if diff <= tolerance:
                         break
                 if recall < target_recall:
                     left = mid + 1
@@ -241,11 +220,9 @@ class GroundTruth:
                     right = mid - 1
         else:
             raise ValueError(f"Unknown method '{method}'")
-        if best_recall < target_recall:
-            return 0
         return best_efS if best_efS else 0
     
-    def get_efS(self, M, efC, target_recall=None, target_qps=None, method="binary", efS_min=32, efS_max=1024, tolerance=TOLERANCE, skip_time=False):
+    def get_efS(self, M, efC, target_recall=None, target_qps=None, method="binary", efS_min=EFS_MIN, efS_max=EFS_MAX, tolerance=TOLERANCE, skip_time=False):
         assert (target_recall is None) != (target_qps is None), "Only one of recall_min or qps_min should be set."
         # END OF VALIDATION
         if target_recall:

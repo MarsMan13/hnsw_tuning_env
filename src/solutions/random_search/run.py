@@ -1,20 +1,23 @@
 from src.solutions import postprocess_results, print_optimal_hyperparameters
 from data.ground_truths import GroundTruth
-from src.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN
+from src.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN, M_MAX, M_MIN, EFC_MAX, EFC_MIN, EFS_MAX, EFS_MIN
 import random
+from joblib import Memory
 
-def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET):
+memory = Memory("/tmp/random_search_cache", verbose=0)
+@memory.cache
+def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     if not recall_min and not qps_min:
         raise ValueError("Either recall_min or qps_min must be specified.")
     if recall_min and qps_min:
         raise ValueError("Only one of recall_min or qps_min should be specified.")
-    gd = GroundTruth(impl=impl, dataset=dataset)
+    gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     random.seed(SEED)
     results = []
     while True:
-        M = random.randint(4, 64)
-        efC = random.randint(8, 512)
-        efS = random.randint(10, 1024)
+        M = random.randint(M_MIN, M_MAX)
+        efC = random.randint(EFC_MIN, EFC_MAX)
+        efS = random.randint(EFS_MIN, EFS_MAX)
         recall, qps, total_time, build_time, index_size = gd.get(M=M, efC=efC, efS=efS)
         if gd.tuning_time > tuning_budget:
             print(f"Tuning time out")

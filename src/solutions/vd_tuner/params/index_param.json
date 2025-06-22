@@ -11,7 +11,7 @@
         "class": "building",
         "type": "integer",
         "default": 32,
-        "min": 8,
+        "min": 4,
         "max": 64
     },
     "efConstruction": {
@@ -19,13 +19,13 @@
         "type": "integer",
         "default": 256,
         "min": 8,
-        "max": 512
+        "max": 1024
     },
     "ef": {
         "class": "searching",
         "type": "integer",
         "default": 500,
-        "min": 32,
+        "min": 10,
         "max": 1024
     }
 }

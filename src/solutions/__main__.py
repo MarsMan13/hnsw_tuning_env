@@ -5,7 +5,7 @@ from src.constants import TUNING_BUDGET
 from src.solutions import postprocess_results, print_optimal_hyperparameters
 from src.solutions.brute_force.run import run as brute_force
 from src.solutions.random_search.run import run as random_search
-from src.solutions.our_solution.run5 import run as our_solution
+from src.solutions.our_solution.run import run as our_solution
 from src.solutions.vd_tuner.run import run as vd_tuner
 
 IMPLS = [

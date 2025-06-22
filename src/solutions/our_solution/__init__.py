@@ -2,12 +2,12 @@ def get_max_perf(results, M, recall_min=None, qps_min=None):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     if recall_min:
         return max(
-            (perf for (m, *_), perf in results if m == M and perf[0] >= recall_min),
-            default=(0, 0)
+            (perf for (m, *_), perf in results if m == M and perf[1] >= recall_min),
+            default=(0.0, 0.0, 0.0, 0.0, 0)
         )
     return max(
-        (perf for (m, *_), perf in results if m == M and perf[1] >= qps_min),
-        default=(0, 0)
+        (perf for (m, *_), perf in results if m == M and perf[2] >= qps_min),
+        default=(0.0, 0.0, 0.0, 0.0, 0)
     )
 
 # def get_exploitation_targets(results):

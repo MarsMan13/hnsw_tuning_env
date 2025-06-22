@@ -1,11 +1,10 @@
 import os
 import csv
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import numpy as np
 
-from src.constants import EFC_MAX, EFC_MIN, M_MAX, M_MIN, RECALL_MIN, SEED, TOLERANCE, TUNING_BUDGET
+from src.constants import EFC_MAX, EFC_MIN, M_MAX, M_MIN, RECALL_MIN, SEED, TOLERANCE, TUNING_BUDGET, MAX_SAMPLING_COUNT
 
 def filename_builder(solution, impl, dataset, recall_min, qps_min, tuning_budget=None):
     if tuning_budget:
@@ -13,21 +12,21 @@ def filename_builder(solution, impl, dataset, recall_min, qps_min, tuning_budget
     else:
         return f"{solution}_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv"
 
-def _save_path(output_type, solution, filename, seed):
-    path = os.path.join("results", output_type, str(seed), solution)
+def _save_path(output_type, solution, filename, seed, sampling_count):
+    path = os.path.join("results", output_type, str(seed), str(sampling_count), solution)
     os.makedirs(path, exist_ok=True)
     return os.path.join(path, filename)
 
-def save_search_results(results, solution, filename, seed=SEED):
-    save_path = _save_path("result", solution, filename, seed)
+def save_search_results(results, solution, filename, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+    save_path = _save_path("result", solution, filename, seed, sampling_count)
     with open(save_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
         for (M, efC, efS), (T_record, recall, qps, total_time, build_time, index_size) in results:
             writer.writerow([M, efC, efS, T_record, recall, qps, total_time, build_time, index_size])
 
-def load_search_results(solution, filename, seed=SEED):
-    load_path = _save_path("result", solution, filename, seed)
+def load_search_results(solution, filename, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+    load_path = _save_path("result", solution, filename, seed, sampling_count)
     results = []
     if not os.path.exists(load_path):
         print(f"File {load_path} does not exist.")
@@ -71,17 +70,6 @@ def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
         print(f"No hyperparameters found with recall >= {recall_min}" if recall_min is not None else f"No hyperparameters found with qps >= {qps_min}")
     
     return optimal_hyperparameters
-
-def save_optimal_hyperparameters(optimal_combi, recall_min=None, qps_min=None, seed=SEED):
-    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("optimal_hyperparameters", "_".join(optimal_combi.keys()), f"optimal_hyperparameters_{recall_min}r_{qps_min}q.csv", seed)
-    with open(save_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["solution", "M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
-        for solution, (hp, perf) in optimal_combi.items():
-            M, efC, efS = hp
-            T_record, recall, qps, total_time, build_time, index_size = perf
-            writer.writerow([solution, M, efC, efS, T_record, recall, qps, total_time, build_time, index_size])
 
 def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
@@ -136,9 +124,21 @@ def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
         print(f"No hyperparameters found with {'recall >= ' + str(recall_min) if recall_min is not None else 'qps >= ' + str(qps_min)}")
     return get_local_optimal_hyperparameters
 
-def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED):
+def save_optimal_hyperparameters(optimal_combi, recall_min=None, qps_min=None, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("accumulated_timestamp", dirname, filename, seed)
+    save_path = _save_path("optimal_hyperparameters", "_".join(optimal_combi.keys()), f"optimal_hyperparameters_{recall_min}r_{qps_min}q.csv", seed, sampling_count)
+    with open(save_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["solution", "M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
+        for solution, (hp, perf) in optimal_combi.items():
+            M, efC, efS = hp
+            T_record, recall, qps, total_time, build_time, index_size = perf
+            writer.writerow([solution, M, efC, efS, T_record, recall, qps, total_time, build_time, index_size])
+
+
+def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+    save_path = _save_path("accumulated_timestamp", dirname, filename, seed, sampling_count)
     
     for solution, result in results.items():
         if recall_min:
@@ -182,9 +182,9 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     plt.savefig(save_path)
     plt.close()
 
-def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED):
+def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("timestamp", solution, filename, seed)
+    save_path = _save_path("timestamp", solution, filename, seed, sampling_count)
     if recall_min:
         filtered_results = [
             (value[0], value[2])  # T_record, qps
@@ -215,9 +215,9 @@ def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, t
     plt.savefig(save_path)
     plt.close()
 
-def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED):
+def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("searched_points", solution, filename, seed)
+    save_path = _save_path("searched_points", solution, filename, seed, sampling_count)
     M_vals = []
     efC_vals = []
     perf_vals = []
@@ -279,9 +279,9 @@ def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_mi
     plt.close()
     print(save_path)
 
-def plot_efS_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED):
+def plot_efS_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("efS_3d", solution, filename, seed)
+    save_path = _save_path("efS_3d", solution, filename, seed, sampling_count)
     
     M_vals = []
     efC_vals = []

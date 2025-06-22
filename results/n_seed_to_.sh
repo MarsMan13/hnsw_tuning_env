@@ -10,7 +10,7 @@ if [ -z "$1" ]; then
     echo "Error: No number provided."
     echo "Usage: ./copy_dirs.sh <number>"
     exit 1
-
+fi
 
 # --- 2. Define Source and Destination Directories ---
 INPUT_NUMBER=$1
