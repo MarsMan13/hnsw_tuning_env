@@ -1,6 +1,6 @@
 from joblib import Memory
 
-if __name__ == "__main__":
+def clear_caches():    
     print("Clearing caches...")
     for cache_dir in [
             "/tmp/brute_force_cache",
@@ -13,3 +13,7 @@ if __name__ == "__main__":
         print(f"Clearing cache at {cache_dir}...")
         memory.clear(warn=False)
         print(f"Cache cleared at {cache_dir}!\n")
+
+if __name__ == "__main__":
+    clear_caches()
+    print("All caches cleared successfully!")

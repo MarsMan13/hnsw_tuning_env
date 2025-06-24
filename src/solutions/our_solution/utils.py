@@ -33,6 +33,12 @@ class EfCGetter:
                 efC_min = max(efC_min, self.__data[m][0])
         return efC_min, efC_max
 
+    def clear(self):
+        self.__data.clear()
+
+    def __contains__(self, M):
+        return M in self.__data
+
 class EfSGetter:    # for each M
     def __init__(self):
         self.__data = dict()
@@ -60,3 +66,6 @@ class EfSGetter:    # for each M
         # if efS_min != _efS_min or efS_max != _efS_max:
         #     print(f"({_efS_min}, {_efS_max}) -> ({efS_min}, {efS_max})")
         return efS_min, efS_max
+    
+    def clear(self):
+        self.__data.clear()

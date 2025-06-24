@@ -10,8 +10,8 @@ STEP_M = 2
 STEP_EFC = 16
 STEP_EFS = 16
 
-# memory = Memory("/tmp/grid_search_cache", verbose=0)
-# @memory.cache
+memory = Memory("/tmp/grid_search_cache", verbose=0)
+@memory.cache
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     if not recall_min and not qps_min:
         raise ValueError("Either recall_min or qps_min must be specified.")

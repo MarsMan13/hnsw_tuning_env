@@ -8,6 +8,6 @@ IMPL = "hnswlib"
 DATASET = "nytimes-256-angular"
 RECALL_MIN = 0.90
 ####
-SEED = 10
-TUNING_BUDGET = 3600 * 12   # hours
+SEED = 42
+TUNING_BUDGET = 3600 * 24   # hours
 # TUNING_BUDGET = 11 * 300 * 1    # hours

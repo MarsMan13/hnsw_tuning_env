@@ -11,6 +11,7 @@ from src.constants import EFS_MIN, EFS_MAX, TOLERANCE
         
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+random.seed(SEED)
 
 def masked_gaussian_filter(matrix, sigma):
     mask = ~np.isnan(matrix)  # True where value exists
@@ -24,8 +25,6 @@ def masked_gaussian_filter(matrix, sigma):
         smoothed[denominator == 0] = np.nan  # 실제 값 없는 위치는 NaN 유지
 
     return smoothed
-
-random.seed(SEED)
 
 class GroundTruth:
     def __init__(self, impl: str, dataset: str, sampling_count=None):
@@ -138,7 +137,7 @@ class GroundTruth:
             self.searched_cache[(M, efC, efS)] = (recall, qps, total_time, build_time, index_size)
             self.searched_timestamp[(M, efC, efS)] = self.tuning_time
         self.current_hp = (M, efC)
-        return recall, qps, total_time, build_time, int(index_size)
+        return float(recall), float(qps), float(total_time), float(build_time), int(index_size)
     
     def _get_efS_for_qps(self, M, efC, target_qps, method, efS_min, efS_max, tolerance):
         qps_min = self.get(M, efC, efS_min)[1]
@@ -149,15 +148,9 @@ class GroundTruth:
         if method == "linear":
             for efS in range(efS_min, efS_max+1):
                 recall, qps, *_ = self.get(M, efC, efS)
-                if qps == 0.0:
-                    continue
-                diff = abs(qps - target_qps)
-                if diff < best_diff and qps >= target_qps:
-                    best_diff = diff
+                if qps >= target_qps:
                     best_efS = efS
                     break
-                    # if diff < tolerance:
-                    #     break
         elif method == "binary":
             left, right = efS_min, efS_max
             while left <= right:
@@ -170,8 +163,6 @@ class GroundTruth:
                 if diff < best_diff and qps >= target_qps:
                     best_diff = diff
                     best_efS = mid 
-                    # if diff <= tolerance:
-                    #     break
                 if qps < target_qps:
                     right = best_efS - 1
                 else:
@@ -179,7 +170,6 @@ class GroundTruth:
         else:
             raise ValueError(f"Unknown method '{method}'")
         return best_efS if best_efS else 0 
-        
     
     def _get_efS_for_recall(self, M, efC, target_recall, method, efS_min, efS_max, tolerance):
         recall_min = self.get(M, efC, efS_min)[0]
@@ -190,21 +180,14 @@ class GroundTruth:
         if method == "linear":
             for efS in range(efS_min, efS_max+1):
                 recall, *_ = self.get(M, efC, efS)
-                if recall == 0.0:
-                    continue
-                diff = abs(recall - target_recall)
-                if diff < best_diff and recall >= target_recall:
-                    best_diff = diff
+                if recall >= target_recall:
                     best_efS = efS
                     break
-                    # if diff < tolerance:
-                    #     break
         elif method == "binary":
             left, right = efS_min, efS_max
             while left <= right:
                 mid = (left + right) // 2
-                recall, *_ = self.get(M, efC, mid)
-                # print(f"\t[{M}, {efC}, {mid}] -> {recall}")
+                recall, qps, *_ = self.get(M, efC, mid)
                 if recall == 0.0:
                     left = mid + 1
                     continue
@@ -212,8 +195,6 @@ class GroundTruth:
                 if diff < best_diff and recall >= target_recall:
                     best_diff = diff
                     best_efS = mid
-                    if diff <= tolerance:
-                        break
                 if recall < target_recall:
                     left = mid + 1
                 else:

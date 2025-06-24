@@ -1,4 +1,4 @@
-from scripts import run_experiments
+from scripts import run_experiments_from_list
 from scripts import IMPLS, DATASETS, SOLUTIONS, RECALL_MINS, QPS_MINS
 
 from src.constants import MAX_SAMPLING_COUNT
@@ -16,7 +16,7 @@ SAMPLING_COUNT = [
 ]
 
 if __name__ == "__main__":
-    run_experiments(
+    run_experiments_from_list(
         implements=IMPLS,
         datasets=DATASETS,
         solutions=SOLUTIONS,

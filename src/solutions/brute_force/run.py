@@ -3,19 +3,20 @@ from src.solutions import postprocess_results, print_optimal_hyperparameters
 from data.ground_truths import GroundTruth
 from joblib import Memory
 
-memory = Memory("/tmp/brute_force_cache", verbose=0)
-@memory.cache
+# memory = Memory("/tmp/brute_force_cache", verbose=0)
+# @memory.cache
 def run(impl=IMPL, dataset=DATASET, recall_min=None , qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     gd = GroundTruth(impl, dataset)
     results = []
-    for M in range(M_MIN, M_MAX+1, 1):
-        for efC in range(EFC_MIN, EFC_MAX+1, 2):
-            efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="linear")
-            # efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="binary")
+    for M in range(M_MIN, M_MAX+1, 2):
+        for efC in range(EFC_MIN, EFC_MAX//2+1, 2):
+            # efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="linear")
+            efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="binary")
             recall, qps, total_time, build_time, index_size = gd.get(M=M, efC=efC, efS=efS, tracking_time=False)
             gd.tuning_time += 100.0
             results.append(((M, efC, efS), (gd.tuning_time, recall, qps, total_time, build_time, index_size)))
+        # print_optimal_hyperparameters(results, recall_min=recall_min, qps_min=qps_min)
     return results
 
 def recall_min():
@@ -25,7 +26,8 @@ def recall_min():
         # for IMPL in ["hnswlib", "faiss"]:
         for IMPL in ["faiss"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["sift-128-euclidean"]:
+            # for DATASET in ["sift-128-euclidean"]:
+            for DATASET in ["nytimes-256-angular"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
                 results = run(IMPL, DATASET, recall_min=RECALL_MIN, tuning_budget=tuning_budget)
                 print_optimal_hyperparameters(results, recall_min=RECALL_MIN)

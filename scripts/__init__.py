@@ -12,35 +12,38 @@ from src.solutions.grid_search.run import run as grid_search
 
 ## Configuration lists (these can remain global or passed as arguments to run_experiments)
 IMPLS = [
-    # "hnswlib",
+    "hnswlib",
     "faiss",
 ]
 DATASETS = [
     "nytimes-256-angular",
     "glove-100-angular",
     "sift-128-euclidean",
-    # "youtube-1024-angular",
-    # "msmarco-384-angular",
-    # "dbpediaentity-768-angular",
+    "youtube-1024-angular",
+    "msmarco-384-angular",
+    "dbpediaentity-768-angular",
 ]
 SOLUTIONS = [
-    # (brute_force, "brute_force"),
+    (brute_force, "brute_force"),
     (grid_search, "grid_search"),
     (random_search, "random_search"),
-    # (vd_tuner, "vd_tuner"),
+    (vd_tuner, "vd_tuner"),
     (our_solution, "our_solution"),
 ]
 RECALL_MINS = [
     0.90,
     0.95,
-    # 0.975,
+    0.975,
 ]
 QPS_MINS = [
-    # 5000,
-    # 20000,
-    # 30000,
+    5000,
+    10000,
+    20000,
 ]
 SAMPLING_COUNT = [
+    1,
+    3,
+    5,
     10,
 ]
 ####
@@ -66,27 +69,13 @@ def worker_function(params):
         return None 
 
 def run_experiments(
-    implements: list, 
-    datasets: list, 
-    solutions: list, 
-    recall_mins: list, 
-    qps_mins: list, 
-    sampling_counts: list,
-    num_cores: int = 6 # Default to 6 cores, can be os.cpu_count()
+    tasks, num_cores:int = 6
 ):
+    """
+    * tasks = [task]
+    * task = (impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count)
+    """
     multiprocessing.set_start_method('spawn', force=True) 
-
-    # Generate all combinations of parameters for recall-based and QPS-based tuning
-    all_combinations = list(itertools.product(implements, datasets, solutions, recall_mins, [None], sampling_counts))
-    all_combinations += list(itertools.product(implements, datasets, solutions, [None], qps_mins, sampling_counts))
-
-    # Prepare tasks for the worker function
-    tasks = [
-        (impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count)
-        for impl, dataset, (solution_func, solution_name), recall_min, qps_min, sampling_count in all_combinations
-    ]
-
-    print(f"Using {num_cores} cores for parallel processing.")
     
     # Use multiprocessing.Pool to run tasks in parallel
     with multiprocessing.Pool(processes=num_cores, maxtasksperchild=1) as pool:
@@ -114,5 +103,25 @@ def run_experiments(
                 )
             else:
                 print("Error in processing a task, skipping...")
-    
     print("All tasks completed.")
+
+def run_experiments_from_list(
+    implements: list,
+    datasets: list,
+    solutions: list,
+    recall_mins: list,
+    qps_mins: list,
+    sampling_counts: list,
+    num_cores: int = 6
+):
+    all_combinations = list(itertools.product(
+        implements, datasets, solutions, recall_mins, [None], sampling_counts
+    ))
+    all_combinations += list(itertools.product(
+        implements, datasets, solutions, [None], qps_mins, sampling_counts
+    ))
+    tasks = [
+        (impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count)
+        for impl, dataset, (solution_func, solution_name), recall_min, qps_min, sampling_count in all_combinations
+    ]
+    run_experiments(tasks, num_cores=num_cores)
