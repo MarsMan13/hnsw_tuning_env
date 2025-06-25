@@ -8,13 +8,15 @@ from data.ground_truths.ground_truth import GroundTruth
 from functools import cmp_to_key
 from joblib import Memory
 
+random.seed(SEED)
+
 # --- Global variables for tracking search state ---
 _M_to_perf = [] # [(M, max_perf, efC_left, efC_right), ...]
 _searched_hp = set()
 _efC_getter = EfCGetter()
 _efS_getters = dict()
 
-def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget, is_exploration=True):
+def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget):
     
     # efC_left, efC_right = EFC_MIN, EFC_MAX
     efC_left, efC_right = _efC_getter.get(M)
@@ -23,7 +25,8 @@ def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min
         _efS_getters[M] = EfSGetter()
     efS_getter = _efS_getters[M]
     
-    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2 if is_exploration else EFC_MAX  #! HP
+    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2     # ! Logic preserved as per request.
+    # efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 2 # ! Logic preserved as per request.
     efC_count = 0
     max_perf_of_M = 0.0
     while 3 < efC_right - efC_left and efC_count < efC_iter_limit:
@@ -81,35 +84,13 @@ def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_
     M_left, M_right = M_MIN, M_MAX
     _M_to_perf = []
     processed_M = set([m for m, *_ in _M_to_perf])
-
+    M_to_searched = random.shuffle(list(range(M_left, M_right+1)))
     try:
-        while 3 < M_right - M_left:
-            M_mid1 = M_left + (M_right - M_left) // 3
-            M_mid2 = M_right - (M_right - M_left) // 3
-
-            for M in [M_mid1, M_mid2]:
-                _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget)
-                processed_M.add(M)
-
-            perf_mid1 = get_max_perf(results, M_mid1, recall_min=recall_min, qps_min=qps_min)
-            perf_mid2 = get_max_perf(results, M_mid2, recall_min=recall_min, qps_min=qps_min)
-            # print(f"M : {M_mid1} -> {perf_mid1}, M : {M_mid2} -> {perf_mid2}\n")
-            
-            _M_to_perf.append((M_mid1, perf_mid1, M_left, M_right))
-            _M_to_perf.append((M_mid2, perf_mid2, M_left, M_right))
-
-            if perf_mid1 <= perf_mid2:
-                M_left = M_mid1
-            else:
-                M_right = M_mid2
-
-        for M in [M_left, M_right]:
-            if M in processed_M:
-                continue
-            
-            max_perf_of_M = _find_best_efc_for_m(M, ground_truth, results, get_perf, exploration_budget)
+        for M in M_to_searched:    
+            _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget)
             processed_M.add(M)
-            _M_to_perf.append((M, max_perf_of_M, M_left, M_right))
+            perf_mid = get_max_perf(results, M, recall_min=recall_min, qps_min=qps_min)
+            _M_to_perf.append((M, perf_mid, M_left, M_right))
     except TimeoutError as e:
         print(f"Exploration Time Out! Details: {e}")
     _M_to_perf = _M_to_perf[::-1]
@@ -150,11 +131,11 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     results = []
     _exploration_phase(results, gd, recall_min, qps_min, tuning_budget)
     print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-    exploitation_tuning_budget = tuning_budget - gd.tuning_time
-    if exploitation_tuning_budget > 0:
-        print(f"Exploitation tuning budget: {exploitation_tuning_budget}")
-        _exploitation_phase(results, gd, tuning_budget, recall_min, qps_min)
-        print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
+    # exploitation_tuning_budget = tuning_budget - gd.tuning_time
+    # if exploitation_tuning_budget > 0:
+    #     print(f"Exploitation tuning budget: {exploitation_tuning_budget}")
+    #     _exploitation_phase(results, gd, tuning_budget, recall_min, qps_min)
+    #     print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
     print("Tuning is done!")
     
     return results

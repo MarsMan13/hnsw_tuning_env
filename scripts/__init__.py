@@ -51,6 +51,7 @@ SAMPLING_COUNT = [
 def worker_function(params):
     impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count = params
     try:
+        print(f"recall_min: {recall_min}")
         results = solution_func(
             impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min, 
             sampling_count=sampling_count, env=(TUNING_BUDGET, SEED)
@@ -69,7 +70,7 @@ def worker_function(params):
         return None 
 
 def run_experiments(
-    tasks, num_cores:int = 6
+    tasks, num_cores:int = 5
 ):
     """
     * tasks = [task]
@@ -100,6 +101,7 @@ def run_experiments(
                     qps_min=result["qps_min"],
                     tuning_budget=TUNING_BUDGET, # TUNING_BUDGET is from src.constants
                     sampling_count=result["sampling_count"],
+                    lite=True  # Set to True if you want to skip 3D plots
                 )
             else:
                 print("Error in processing a task, skipping...")

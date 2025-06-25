@@ -80,7 +80,7 @@ class MockEnv:
             self.X_record.append((_M, _efC, _efS))  #* (M, efC, efS)
             self.Y1_record.append(y1)
             self.Y2_record.append(y2)
-            self.Y_record.append((y2, y1))  #* recall, QPS
+            self.Y_record.append((y2, y1))  #* (y2, y1) == (recall, QPS)
             self.T_record.append(self.model.tuning_time)
             print(f"self.tuning_time : {self.model.tuning_time}")
             print(f"T_record : {self.T_record[-1]}\n") 

@@ -13,10 +13,7 @@ STEP_EFS = 16
 # memory = Memory("/tmp/grid_search_cache", verbose=0)
 # @memory.cache
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
-    if not recall_min and not qps_min:
-        raise ValueError("Either recall_min or qps_min must be specified.")
-    if recall_min and qps_min:
-        raise ValueError("Only one of recall_min or qps_min should be specified.")
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     random.seed(SEED)
     results = []

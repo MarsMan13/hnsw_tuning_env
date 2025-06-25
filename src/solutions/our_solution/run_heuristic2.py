@@ -8,70 +8,34 @@ from data.ground_truths.ground_truth import GroundTruth
 from functools import cmp_to_key
 from joblib import Memory
 
+random.seed(SEED)
 # --- Global variables for tracking search state ---
 _M_to_perf = [] # [(M, max_perf, efC_left, efC_right), ...]
 _searched_hp = set()
-_efC_getter = EfCGetter()
 _efS_getters = dict()
 
 def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget, is_exploration=True):
     
-    # efC_left, efC_right = EFC_MIN, EFC_MAX
-    efC_left, efC_right = _efC_getter.get(M)
-    # efC_left, efC_right = max(0.9 * efC_left, EFC_MIN), min(1.1 * efC_right, EFC_MAX)
-    if M not in _efC_getter:
-        _efS_getters[M] = EfSGetter()
-    efS_getter = _efS_getters[M]
-    
+    efS_getter = EfSGetter()
+    efC_to_search = random.shuffle(list(range(EFC_MIN, EFC_MAX + 1)))
     efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2 if is_exploration else EFC_MAX  #! HP
-    efC_count = 0
     max_perf_of_M = 0.0
-    while 3 < efC_right - efC_left and efC_count < efC_iter_limit:
-        efC_count += 1
-        
-        efC_mid1 = efC_left + (efC_right - efC_left) // 3
-        efC_mid2 = efC_right - (efC_right - efC_left) // 3
-        
-        efS_mid1_min, efS_mid1_max = efS_getter.get(efC_mid1)
-        efS_mid2_min, efS_mid2_max = efS_getter.get(efC_mid2)
-        efS_mid1 = ground_truth.get_efS(M, efC_mid1, recall_min, qps_min, efS_min=efS_mid1_min, efS_max=efS_mid1_max)
+    for efC in efC_to_search[:efC_iter_limit]:
+        efS_min, efS_max = efS_getter.get(efC)
+        efS = ground_truth.get_efS(M, efC, recall_min, qps_min, efS_min=efS_min, efS_max=efS_max)
 
         if ground_truth.tuning_time > exploration_budget:
             raise TimeoutError("Tuning time out during efS search")
-        tt1 = ground_truth.tuning_time
+        tt = ground_truth.tuning_time
 
-        efS_mid2 = ground_truth.get_efS(M, efC_mid2, recall_min, qps_min, efS_min=efS_mid2_min, efS_max=efS_mid2_max)
-        if ground_truth.tuning_time > exploration_budget:
-            raise TimeoutError("Tuning time out during efS search")
-        tt2 = ground_truth.tuning_time
-        
-        efS_getter.put(efC_mid1, efS_mid1)
-        efS_getter.put(efC_mid2, efS_mid2)
-        perf_mid1 = ground_truth.get(M, efC_mid1, efS_mid1)
-        perf_mid2 = ground_truth.get(M, efC_mid2, efS_mid2)
+        efS_getter.put(efC, efS)
+        perf = ground_truth.get(M, efC, efS)
 
-        hp1 = (M, efC_mid1, efS_mid1)
+        hp1 = (M, efC, efS)
         if hp1 not in _searched_hp:
             _searched_hp.add(hp1)
-            results.append((hp1, (tt1, *perf_mid1)))
-
-        hp2 = (M, efC_mid2, efS_mid2)
-        if hp2 not in _searched_hp:
-            _searched_hp.add(hp2)
-            results.append((hp2, (tt2, *perf_mid2)))
-
-        if get_perf(perf_mid1) <= get_perf(perf_mid2):
-            efC_left = efC_mid1
-        else:
-            efC_right = efC_mid2
-        
-        max_perf_of_M = max(max_perf_of_M, get_perf(perf_mid1), get_perf(perf_mid2))
-        # print(f"\t\t[{M}] - efC: {efC_mid1} -> {get_perf(perf_mid1):.4f}, efC: {efC_mid2} \
-        #         -> {get_perf(perf_mid2):.4f} -> Max Perf for M: {max_perf_of_M:.4f}")
-
-    _efC_getter.put(M, efC_left, efC_right)
-    _M_to_perf.append((M, max_perf_of_M, efC_left, efC_right))
-    # print(f"\tM : {M} -> {max_perf_of_M:.4f}")
+            results.append((hp1, (tt, *perf)))
+        max_perf_of_M = max(max_perf_of_M, get_perf(perf), get_perf(perf))
     return max_perf_of_M
 
 def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_min=None, exploration_budget=TUNING_BUDGET):
@@ -145,7 +109,6 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     _M_to_perf.clear()
     _searched_hp.clear()
-    _efC_getter.clear()
     _efS_getters.clear()
     results = []
     _exploration_phase(results, gd, recall_min, qps_min, tuning_budget)

@@ -14,7 +14,7 @@ _searched_hp = set()
 _efC_getter = EfCGetter()
 _efS_getters = dict()
 
-def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget, is_exploration=True):
+def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_min, qps_min, exploration_budget):
     
     # efC_left, efC_right = EFC_MIN, EFC_MAX
     efC_left, efC_right = _efC_getter.get(M)
@@ -23,7 +23,8 @@ def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min
         _efS_getters[M] = EfSGetter()
     efS_getter = _efS_getters[M]
     
-    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2 if is_exploration else EFC_MAX  #! HP
+    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2     # ! Logic preserved as per request.
+    # efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 2 # ! Logic preserved as per request.
     efC_count = 0
     max_perf_of_M = 0.0
     while 3 < efC_right - efC_left and efC_count < efC_iter_limit:

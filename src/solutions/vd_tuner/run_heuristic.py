@@ -15,10 +15,7 @@ USE_EFS = False
 # memory = Memory("/tmp/vd_tuner_cache", verbose=0)
 # @memory.cache
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, use_efS=False, sampling_count=None, env=(TUNING_BUDGET, SEED)):
-    if not recall_min and not qps_min:
-        raise ValueError("Either recall_min or qps_min must be specified.")
-    if recall_min and qps_min:
-        raise ValueError("Only one of recall_min or qps_min should be specified.")
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
     knob_path = os.path.join(BASE_DIR, "params/whole_param.json")
     env = MockEnv(model=gd, knob_path=knob_path, tuning_budget=tuning_budget, use_efS=use_efS)

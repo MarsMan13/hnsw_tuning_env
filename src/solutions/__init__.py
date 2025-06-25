@@ -16,7 +16,7 @@ def print_optimal_hyperparameters(results, recall_min=None, qps_min=None):
     return global_opt_hp, local_opt_hps
 
 def postprocess_results(results, solution, impl, dataset, tuning_budget, 
-                        recall_min=None, qps_min=None, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+                        recall_min=None, qps_min=None, seed=SEED, sampling_count=MAX_SAMPLING_COUNT, lite=False):
     save_search_results(
         results, 
         solution=solution, filename=f"{solution}_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv", 
@@ -33,6 +33,8 @@ def postprocess_results(results, solution, impl, dataset, tuning_budget,
         filename=f"{solution}_multi_accumulated_timestamp_{impl}_{dataset}_{recall_min}r_{qps_min}q.png", 
         recall_min=recall_min, qps_min=qps_min, tuning_budget=tuning_budget, seed=seed, sampling_count=sampling_count
     )
+    if lite:
+        return
     try:
         plot_searched_points_3d(
             results, 

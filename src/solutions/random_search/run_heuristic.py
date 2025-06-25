@@ -4,10 +4,7 @@ from src.constants import IMPL, DATASET, SEED, TUNING_BUDGET, RECALL_MIN
 import random
 
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET):
-    if not recall_min and not qps_min:
-        raise ValueError("Either recall_min or qps_min must be specified.")
-    if recall_min and qps_min:
-        raise ValueError("Only one of recall_min or qps_min should be specified.")
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     gd = GroundTruth(impl=impl, dataset=dataset)
     random.seed(SEED)
     results = []
@@ -18,12 +15,7 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
         if (M, efC) in searched_hp:
             continue
         searched_hp.add((M, efC))
-        if recall_min:
-            efS = gd.get_efS(M, efC, target_recall=recall_min)
-        elif qps_min:
-            efS = gd.get_efS(M, efC, target_qps=qps_min)
-        else:
-            raise ValueError("Either recall_min or qps_min must be specified.")
+        efS = gd.get_efS(M, efC, recall_min=recall_min, qps_min=qps_min)
         if gd.tuning_time > tuning_budget:
             print(f"Tuning time out")
             break

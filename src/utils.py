@@ -94,7 +94,7 @@ def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
                     best_metric = recall
                 else:
                     continue
-            if type(tuning_time) is not float:
+            if hasattr(recall, "item"):
                 local_opt = (
                     (M, efC, efS),
                     (
@@ -130,16 +130,26 @@ def save_optimal_hyperparameters(optimal_combi, recall_min=None, qps_min=None, s
     with open(save_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["solution", "M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
+        for item in optimal_combi.items():
+            print(item)
         for solution, (hp, perf) in optimal_combi.items():
             M, efC, efS = hp
             T_record, recall, qps, total_time, build_time, index_size = perf
             writer.writerow([solution, M, efC, efS, T_record, recall, qps, total_time, build_time, index_size])
 
-
 def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+
     save_path = _save_path("accumulated_timestamp", dirname, filename, seed, sampling_count)
     
+    markers = ['o', 's', '^', 'D', 'p', 'h', '*', 'X', '+', 'v']
+    colors = [cm.get_cmap('tab10')(i) for i in range(10)] # tab10 provides 10 distinct colors
+
+    marker_idx = 0
+    color_idx = 0
+
+    plt.figure(figsize=(10, 6)) # Set figure size for better readability
+
     for solution, result in results.items():
         if recall_min:
             filtered = [
@@ -157,10 +167,8 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
             if recall_min : print(f"[{solution}] No results with recall >= {recall_min}")
             if qps_min : print(f"[{solution}] No results with qps >= {qps_min}")
             continue
-
         filtered.sort(key=lambda x: x[0])
-
-        accumulated = [(0.0, 0.0)]
+        accumulated = [(0.0, 0.0)] # Start with (0,0) for the plot
         max_perf = 0.0
         for t, perf in filtered:
             if perf > max_perf:
@@ -169,16 +177,23 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
                 accumulated.append((t, perf))
         if not accumulated:
             continue
-        accumulated.append((tuning_budget, max_perf))  # Add a point at the end of the tuning budget
-        timestamps, qps_values = zip(*accumulated)
-        plt.plot(timestamps, qps_values, marker='o', label=solution)
-
+        accumulated.append((tuning_budget, max_perf))
+        timestamps, perf_values = zip(*accumulated)
+        plt.plot(
+            timestamps,
+            perf_values,
+            marker=markers[marker_idx % len(markers)],  # Cycle through markers
+            color=colors[color_idx % len(colors)],      # Cycle through colors
+            label=solution
+        )
+        marker_idx += 1
+        color_idx += 1
     plt.title("Accumulated TimeStamp Plot")
-    plt.xlabel("Time")
+    plt.xlabel("Time (seconds)")
     plt.ylabel("QPS" if recall_min else "Recall")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+    plt.grid(True) # Add grid for better readability
+    plt.legend(loc='best') # Display legend, choosing the best location automatically
+    plt.tight_layout() # Adjust plot to prevent labels from overlapping
     plt.savefig(save_path)
     plt.close()
 

@@ -37,6 +37,15 @@ def _process_single_metric(
             solution, impl, dataset, recall_min, qps_min
         )
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+        if solution == "brute_force":
+            optimal_hp = get_optimal_hyperparameter(
+                results, recall_min=recall_min, qps_min=qps_min
+            )
+            hp = optimal_hp[0]
+            _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1] 
+            perf = (0.0, recall, qps, total_time, build_time, index_size)
+            optimal_hp = (hp, perf)
+            results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
         results_combi[solution] = results
 
     #* 2. Determine metric type and value for file naming and plotting
@@ -74,9 +83,10 @@ def _process_single_metric(
 
 def main():
     SOLUTIONS = [
+        "brute_force",
+        "our_solution",
         "grid_search",
         "random_search",
-        "our_solution",
     ]
     IMPLS = [
         "faiss",
@@ -85,14 +95,15 @@ def main():
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
+        "youtube-1024-angular",
     ]
     SAMPLING_COUNT = [
         10,
-        # # # 1, 
-        # # 3, 
+        # 1, 
+        # 3, 
         # 5, 
     ]
-    RECALL_MINS = [0.90, 0.95]
+    RECALL_MINS = [0.90, 0.95, 0.975]
     QPS_MINS = []
     # Create a single combined iterator for all jobs
     all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)

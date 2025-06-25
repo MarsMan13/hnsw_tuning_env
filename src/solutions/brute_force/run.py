@@ -9,8 +9,8 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None , qps_min=None, tuning_budge
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     gd = GroundTruth(impl, dataset)
     results = []
-    for M in range(M_MIN, M_MAX+1, 2):
-        for efC in range(EFC_MIN, EFC_MAX//2+1, 2):
+    for M in range(M_MIN, M_MAX+1, 1):
+        for efC in range(EFC_MIN, EFC_MAX+1, 1):
             # efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="linear")
             efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min, method="binary")
             recall, qps, total_time, build_time, index_size = gd.get(M=M, efC=efC, efS=efS, tracking_time=False)

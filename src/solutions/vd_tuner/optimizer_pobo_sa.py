@@ -295,7 +295,7 @@ class PollingBayesianOptimization:
         if self.worst_type_record[-window:] == [self.worst_type_record[-1]] * window and len(self.remain_types) > 1:
             self.remain_types.remove(self.worst_type_record[-1])
             self.polling_round_num = 0
- 
+
     def index_type_score(self, ):
         # to calculate within the whole set
         Y = [j for item in self.Y.values() for j in item]
