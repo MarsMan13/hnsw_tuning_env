@@ -164,9 +164,9 @@ class GroundTruth:
                     best_diff = diff
                     best_efS = mid 
                 if qps < target_qps:
-                    right = best_efS - 1
+                    right = mid - 1
                 else:
-                    left = best_efS + 1
+                    left = mid + 1
         else:
             raise ValueError(f"Unknown method '{method}'")
         return best_efS if best_efS else 0 

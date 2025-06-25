@@ -14,7 +14,7 @@ _searched_hp = set()
 _efC_getter = EfCGetter()
 _efS_getters = dict()
 
-def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget, is_exploration=True):
+def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_min, qps_min, exploration_budget, is_exploration=True):
     
     # efC_left, efC_right = EFC_MIN, EFC_MAX
     efC_left, efC_right = _efC_getter.get(M)
@@ -166,10 +166,10 @@ if __name__ == "__main__":
         for IMPL in ["hnswlib"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
-            for DATASET in ["dbpediaentity-768-angular"]:
+            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
+            # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
-                results = run(IMPL, DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
+                results = run(IMPL, DATASET, recall_min=None, qps_min=10000, tuning_budget=TUNING_BUDGET)
                 # print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
                 postprocess_results(
                     results, solution="our_solution", impl=IMPL, dataset=DATASET, 

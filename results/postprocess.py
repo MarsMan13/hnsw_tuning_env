@@ -3,6 +3,7 @@ import itertools
 from src.constants import TUNING_BUDGET
 from src.utils import filename_builder, get_optimal_hyperparameter, load_search_results, \
     plot_multi_accumulated_timestamp, plot_searched_points_3d, plot_timestamp, save_optimal_hyperparameters
+from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 # def process_file():
 #     SOLUTION = "vd_tuner"
@@ -38,6 +39,7 @@ def _process_single_metric(
         )
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
         if solution == "brute_force":
+            print(f"solution : {solution}, results : {results}")
             optimal_hp = get_optimal_hyperparameter(
                 results, recall_min=recall_min, qps_min=qps_min
             )
@@ -83,13 +85,17 @@ def _process_single_metric(
 
 def main():
     SOLUTIONS = [
-        "brute_force",
+        # "brute_force",
         "our_solution",
         "grid_search",
         "random_search",
+        # "vd_tuner",
+        # "grid_search_heuristic",
+        # "random_search_heuristic",
     ]
     IMPLS = [
         "faiss",
+        "hnswlib"
     ]
     DATASETS = [
         "nytimes-256-angular",
@@ -104,7 +110,6 @@ def main():
         # 5, 
     ]
     RECALL_MINS = [0.90, 0.95, 0.975]
-    QPS_MINS = []
     # Create a single combined iterator for all jobs
     all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)
 
@@ -123,7 +128,7 @@ def main():
             )
 
         # Process for each qps_min value
-        for qps_min in QPS_MINS:
+        for qps_min in get_qps_metrics_dataset(dataset):
             print(f"  - Metric: qps_min = {qps_min}")
             _process_single_metric(
                 impl=impl,

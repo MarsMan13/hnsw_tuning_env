@@ -1,5 +1,7 @@
 import os
 import csv
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend for saving plots
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
@@ -191,6 +193,7 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     plt.title("Accumulated TimeStamp Plot")
     plt.xlabel("Time (seconds)")
     plt.ylabel("QPS" if recall_min else "Recall")
+    plt.xlim(0, tuning_budget)
     plt.grid(True) # Add grid for better readability
     plt.legend(loc='best') # Display legend, choosing the best location automatically
     plt.tight_layout() # Adjust plot to prevent labels from overlapping

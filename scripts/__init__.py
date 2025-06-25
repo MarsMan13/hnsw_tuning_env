@@ -114,7 +114,7 @@ def run_experiments_from_list(
     recall_mins: list,
     qps_mins: list,
     sampling_counts: list,
-    num_cores: int = 6
+    num_cores: int = 5
 ):
     all_combinations = list(itertools.product(
         implements, datasets, solutions, recall_mins, [None], sampling_counts
