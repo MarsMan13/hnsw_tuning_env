@@ -10,6 +10,7 @@ from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
 from src.solutions.grid_search.run import run as grid_search
 
+NUM_CORES = 12 if os.cpu_count() <= 16 else os.cpu_count() - 8
 ## Configuration lists (these can remain global or passed as arguments to run_experiments)
 IMPLS = [
     "hnswlib",
@@ -70,7 +71,7 @@ def worker_function(params):
         return None 
 
 def run_experiments(
-    tasks, num_cores:int = 5
+    tasks, num_cores:int = NUM_CORES
 ):
     """
     * tasks = [task]
@@ -114,7 +115,7 @@ def run_experiments_from_list(
     recall_mins: list,
     qps_mins: list,
     sampling_counts: list,
-    num_cores: int = 5
+    num_cores: int = NUM_CORES
 ):
     all_combinations = list(itertools.product(
         implements, datasets, solutions, recall_mins, [None], sampling_counts

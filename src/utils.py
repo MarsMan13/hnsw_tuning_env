@@ -46,7 +46,7 @@ def load_search_results(solution, filename, seed=SEED, sampling_count=MAX_SAMPLI
 def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     
-    optimal_hyperparameters = None
+    optimal_hyperparameters = ((None, None, None), (0.0, 0.0, 0.0, 0.0, 0.0, 0))
 
     if recall_min is not None:
         best_qps = 0.0
@@ -68,9 +68,6 @@ def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
                     round(float(total_time), 2), round(float(build_time), 2), int(index_size)
                 ))
 
-    if optimal_hyperparameters is None:
-        print(f"No hyperparameters found with recall >= {recall_min}" if recall_min is not None else f"No hyperparameters found with qps >= {qps_min}")
-    
     return optimal_hyperparameters
 
 def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
@@ -153,14 +150,15 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     plt.figure(figsize=(10, 6)) # Set figure size for better readability
 
     for solution, result in results.items():
+        filtered = [(0.0, 0.0)]
         if recall_min:
-            filtered = [
+            filtered += [
                 (value[0], value[2])  # (T_record, qps)
                 for _, value in result
                 if value[1] >= recall_min
             ]
         elif qps_min:
-            filtered = [
+            filtered += [
                 (value[0], value[1])  # (T_record, recall)
                 for _, value in result
                 if value[2] >= qps_min

@@ -11,9 +11,13 @@ def get_qps_metrics_dataset(dataset, ret_dict=False):
     q0 = int(np.quantile(QPSs, 0.0))
     q25 = int(np.quantile(QPSs, 0.25))
     q75 = int(np.quantile(QPSs, 0.75))
+    q90 = int(np.quantile(QPSs, 0.90))
+    q95 = int(np.quantile(QPSs, 0.95))
+    q975 = int(np.quantile(QPSs, 0.975))
+    q99 = int(np.quantile(QPSs, 0.99))
     q100 = int(np.quantile(QPSs, 1.0))
     if not ret_dict:
-        return mean, median, q25, q75
+        return mean, q90, q95, q975, q99
     return {
         "mean": mean,
         "median": median,
@@ -27,6 +31,5 @@ if __name__ == "__main__":
     for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
                     "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
         print(f"\n**** {DATASET} ****")
-        for METRIC in ["mean", "median", "q0", "q25", "q75", "q100"]:
-            value = get_qps_metrics_dataset(DATASET, METRIC)
-            print(f"{METRIC:7}: {value}")
+        for metric, value in get_qps_metrics_dataset(DATASET, ret_dict=True).items():
+            print(f"{metric: 7}: {value}")
