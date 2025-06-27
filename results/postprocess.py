@@ -1,4 +1,6 @@
 import itertools
+import multiprocessing
+from functools import partial
 
 from src.constants import TUNING_BUDGET
 from src.utils import filename_builder, get_optimal_hyperparameter, load_search_results, \
@@ -29,6 +31,11 @@ def _process_single_metric(
     Helper function to process results for a single metric (either recall_min or qps_min).
     It loads data, plots timestamp, and saves optimal hyperparameters.
     """
+    # Announce which process is handling which task
+    metric_type = "recall" if recall_min is not None else "qps"
+    metric_value = recall_min if recall_min is not None else qps_min
+    print(f"[Process {multiprocessing.current_process().pid}] Processing: {impl}, {dataset}, {metric_type}={metric_value}, sampling={sampling_count}")
+
     results_combi = {}
     optimal_combi = {}
 
@@ -39,7 +46,6 @@ def _process_single_metric(
         )
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
         if solution == "brute_force":
-            print(f"solution : {solution}, results : {results}")
             optimal_hp = get_optimal_hyperparameter(
                 results, recall_min=recall_min, qps_min=qps_min
             )
@@ -85,7 +91,7 @@ def _process_single_metric(
 
 def main():
     SOLUTIONS = [
-        # "brute_force",
+        "brute_force",
         "our_solution",
         "grid_search",
         "random_search",
@@ -105,38 +111,61 @@ def main():
     ]
     SAMPLING_COUNT = [
         10,
-        # 1, 
-        # 3, 
-        # 5, 
+        1, 
+        3, 
+        5, 
     ]
-    RECALL_MINS = [0.90, 0.95, 0.975]
-    # Create a single combined iterator for all jobs
+    RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
+
+    # --- Start of multiprocessing modification ---
+
+    #* 1. Create a list to hold all the tasks to be executed.
+    # A task is a tuple of arguments for the _process_single_metric function.
+    tasks = []
+    
     all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)
 
+    print("--- Preparing tasks for parallel execution ---")
     for impl, dataset, sampling_count in all_iters:
-        print(f"--- Processing {impl} for {dataset} ---")
-
-        # Process for each recall_min value
+        # Prepare tasks for each recall_min value
         for recall_min in RECALL_MINS:
-            print(f"  - Metric: recall_min = {recall_min}")
-            _process_single_metric(
-                impl=impl, 
-                dataset=dataset, 
-                solutions=SOLUTIONS, 
-                recall_min=recall_min,
-                sampling_count=sampling_count
-            )
+            # Add a tuple of arguments for the worker function
+            task_args = (impl, dataset, SOLUTIONS, recall_min, None, sampling_count)
+            tasks.append(task_args)
+            print(f"  - Queued task: {impl}, {dataset}, recall_min={recall_min}, sampling={sampling_count}")
 
-        # Process for each qps_min value
+        # Prepare tasks for each qps_min value
         for qps_min in get_qps_metrics_dataset(dataset):
-            print(f"  - Metric: qps_min = {qps_min}")
-            _process_single_metric(
-                impl=impl,
-                dataset=dataset,
-                solutions=SOLUTIONS,
-                qps_min=qps_min,
-                sampling_count=sampling_count
-            )
-                
+            # Add a tuple of arguments for the worker function
+            task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
+            tasks.append(task_args)
+            print(f"  - Queued task: {impl}, {dataset}, qps_min={qps_min}, sampling={sampling_count}")
+    
+    print("\n--- All tasks prepared. Starting parallel processing. ---")
+
+    #* 2. Use a multiprocessing Pool to execute tasks in parallel.
+    # It's recommended to use a number of processes equal to the number of CPU cores.
+    try:
+        # Use all available CPU cores, or specify a number.
+
+        num_processes = 12 if multiprocessing.cpu_count() <= 16 else multiprocessing.cpu_count() - 12
+        print(f"Creating a pool of {num_processes} worker processes for {len(tasks)} tasks.")
+        
+        # 'with' statement ensures the pool is properly closed after use.
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            # pool.starmap takes a function and an iterable of argument tuples.
+            # It unpacks each tuple and calls the function with those arguments.
+            # e.g., for a task (a, b, c), it calls _process_single_metric(a, b, c)
+            pool.starmap(_process_single_metric, tasks)
+
+    except Exception as e:
+        print(f"An error occurred during multiprocessing: {e}")
+
+    #* 3. All tasks are completed.
+    print("\n--- Parallel processing finished. ---")
+    
 if __name__ == "__main__":
+    # This check is crucial for multiprocessing to work correctly,
+    # especially on Windows and macOS. It prevents child processes from
+    # re-importing and re-executing the main script's code.
     main()

@@ -22,10 +22,9 @@ def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_
     if M not in _efC_getter:
         _efS_getters[M] = EfSGetter()
     efS_getter = _efS_getters[M]
-    
-    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2 if is_exploration else EFC_MAX  #! HP
-    efC_count = 0
+    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 3 if is_exploration else EFC_MAX  #! HP
     max_perf_of_M = 0.0
+    efC_count = 0
     while 3 < efC_right - efC_left and efC_count < efC_iter_limit:
         efC_count += 1
         
@@ -68,7 +67,24 @@ def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_
         max_perf_of_M = max(max_perf_of_M, get_perf(perf_mid1), get_perf(perf_mid2))
         # print(f"\t\t[{M}] - efC: {efC_mid1} -> {get_perf(perf_mid1):.4f}, efC: {efC_mid2} \
         #         -> {get_perf(perf_mid2):.4f} -> Max Perf for M: {max_perf_of_M:.4f}")
-
+    for efC in [efC_left, efC_right]:
+        if efC_iter_limit <= efC_count:
+            break
+        if efC in efS_getter:
+            continue
+        efC_count += 1
+        efS_min, efS_max = efS_getter.get(efC)
+        efS = ground_truth.get_efS(M, efC, recall_min, qps_min, efS_min=efS_min, efS_max=efS_max)
+        if ground_truth.tuning_time > exploration_budget:
+            raise TimeoutError("Tuning time out during efS search")
+        tt = ground_truth.tuning_time
+        efS_getter.put(efC, efS)
+        perf = ground_truth.get(M, efC, efS)
+        hp = (M, efC, efS)
+        if hp not in _searched_hp:
+            _searched_hp.add(hp)
+            results.append((hp, (tt, *perf)))
+        max_perf_of_M = max(max_perf_of_M, get_perf(perf))
     _efC_getter.put(M, efC_left, efC_right)
     _M_to_perf.append((M, max_perf_of_M, efC_left, efC_right))
     # print(f"\tM : {M} -> {max_perf_of_M:.4f}")
@@ -76,7 +92,6 @@ def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_
 
 def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_min=None, exploration_budget=TUNING_BUDGET):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    
     get_perf = lambda perf: perf[1] if recall_min else perf[0]
     M_left, M_right = M_MIN, M_MAX
     _M_to_perf = []
@@ -106,7 +121,6 @@ def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_
         for M in [M_left, M_right]:
             if M in processed_M:
                 continue
-            
             max_perf_of_M = _find_best_efc_for_m(M, ground_truth, results, get_perf, exploration_budget)
             processed_M.add(M)
             _M_to_perf.append((M, max_perf_of_M, M_left, M_right))
@@ -124,7 +138,6 @@ def _exploitation_phase(results, ground_truth:GroundTruth, exploitation_budget, 
         print("No M to perf found in exploration phase.")
         return
     sorted_M_configs = sorted(_M_to_perf, key=lambda x: x[1], reverse=True)
-    print
     try:
         for M, max_perf, efC_left, efC_right in sorted_M_configs:
             if gd.tuning_time > exploitation_budget:

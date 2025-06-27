@@ -7,7 +7,7 @@ TOLERANCE = 0.005
 IMPL = "hnswlib"
 DATASET = "nytimes-256-angular"
 RECALL_MIN = 0.90
-####
+#****************************************
 SEED = 42
-TUNING_BUDGET = 3600 * 24   # hours
-# TUNING_BUDGET = 11 * 300 * 1    # hours
+TUNING_BUDGET = 3600 * 6   # hours
+#****************************************

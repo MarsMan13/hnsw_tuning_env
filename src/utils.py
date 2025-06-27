@@ -19,6 +19,10 @@ def _save_path(output_type, solution, filename, seed, sampling_count):
     os.makedirs(path, exist_ok=True)
     return os.path.join(path, filename)
 
+def is_already_saved(solution, filename, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+    save_path = _save_path("result", solution, filename, seed, sampling_count)
+    return os.path.exists(save_path)
+
 def save_search_results(results, solution, filename, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     save_path = _save_path("result", solution, filename, seed, sampling_count)
     with open(save_path, "w", newline="") as f:
@@ -150,15 +154,14 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     plt.figure(figsize=(10, 6)) # Set figure size for better readability
 
     for solution, result in results.items():
-        filtered = [(0.0, 0.0)]
         if recall_min:
-            filtered += [
+            filtered = [
                 (value[0], value[2])  # (T_record, qps)
                 for _, value in result
                 if value[1] >= recall_min
             ]
         elif qps_min:
-            filtered += [
+            filtered = [
                 (value[0], value[1])  # (T_record, recall)
                 for _, value in result
                 if value[2] >= qps_min
@@ -167,6 +170,7 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
             if recall_min : print(f"[{solution}] No results with recall >= {recall_min}")
             if qps_min : print(f"[{solution}] No results with qps >= {qps_min}")
             continue
+        filtered.insert(0, (0.0, 0.0))
         filtered.sort(key=lambda x: x[0])
         accumulated = [(0.0, 0.0)] # Start with (0,0) for the plot
         max_perf = 0.0

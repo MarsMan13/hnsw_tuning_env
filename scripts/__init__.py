@@ -9,8 +9,9 @@ from src.solutions.random_search.run import run as random_search
 from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
 from src.solutions.grid_search.run import run as grid_search
+from src.utils import is_already_saved
 
-NUM_CORES = 12 if os.cpu_count() <= 16 else os.cpu_count() - 8
+NUM_CORES = 12 if os.cpu_count() <= 16 else os.cpu_count() - 16
 ## Configuration lists (these can remain global or passed as arguments to run_experiments)
 IMPLS = [
     "hnswlib",
@@ -52,19 +53,37 @@ SAMPLING_COUNT = [
 def worker_function(params):
     impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count = params
     try:
+        if is_already_saved(
+            solution=solution_name, 
+            filename=f"{solution_name}_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv", 
+            sampling_count=sampling_count
+        ):
+            print(f"Skipping {solution_name} for {impl} on {dataset} (already saved)")
+            return {
+                "solution": solution_name,
+                "impl": impl,
+                "dataset": dataset,
+            }
         print(f"recall_min: {recall_min}")
         results = solution_func(
             impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min, 
             sampling_count=sampling_count, env=(TUNING_BUDGET, SEED)
         )
+        postprocess_results(
+            results=results,
+            solution=solution_name,
+            impl=impl,
+            dataset=dataset,
+            recall_min=recall_min,
+            qps_min=qps_min,
+            tuning_budget=TUNING_BUDGET,  # TUNING_BUDGET is from src.constants
+            sampling_count=sampling_count,
+            lite=True  # Set to True if you want to skip 3D plots
+        )
         return {
             "solution": solution_name,
             "impl": impl,
             "dataset": dataset,
-            "recall_min": recall_min,
-            "qps_min": qps_min,
-            "sampling_count": sampling_count,
-            "results": results,
         }
     except Exception as e:
         print(f"Error in {solution_name} for {impl} on {dataset}: {e}")
@@ -83,27 +102,9 @@ def run_experiments(
     with multiprocessing.Pool(processes=num_cores, maxtasksperchild=1) as pool:
         # maxtasksperchild=1 ensures each child process is fresh after one task,
         # which can help with memory leaks or resource cleanup, though it adds overhead.
-        for result in pool.imap_unordered(worker_function, tasks):
-            if result is not None:
-                print(f"Completed: {result['solution']} for {result['impl']} on {result['dataset']}")
-                # Process and print optimal hyperparameters
-                print_optimal_hyperparameters(
-                    result['results'], 
-                    recall_min=result['recall_min'], 
-                    qps_min=result['qps_min']
-                )
-                # Post-process results (e.g., saving plots/data)
-                postprocess_results(
-                    result["results"],
-                    solution=result["solution"],
-                    impl=result["impl"],
-                    dataset=result["dataset"],
-                    recall_min=result["recall_min"],
-                    qps_min=result["qps_min"],
-                    tuning_budget=TUNING_BUDGET, # TUNING_BUDGET is from src.constants
-                    sampling_count=result["sampling_count"],
-                    lite=True  # Set to True if you want to skip 3D plots
-                )
+        for info in pool.imap_unordered(worker_function, tasks):
+            if info is not None:
+                print(f"Completed: {info['solution']} for {info['impl']} on {info['dataset']}")
             else:
                 print("Error in processing a task, skipping...")
     print("All tasks completed.")

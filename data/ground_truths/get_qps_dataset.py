@@ -6,25 +6,19 @@ def get_qps_metrics_dataset(dataset, ret_dict=False):
     results = gd.load_ground_truths(impl="hnswlib", dataset=dataset)
     QPSs = [qps for _, qps, *__ in results.values()]
     
-    mean = int(np.mean(QPSs))
-    median = int(np.median(QPSs))
-    q0 = int(np.quantile(QPSs, 0.0))
-    q25 = int(np.quantile(QPSs, 0.25))
-    q75 = int(np.quantile(QPSs, 0.75))
+    q50 = int(np.quantile(QPSs, 0.50))
+    q60 = int(np.quantile(QPSs, 0.50))
+    q70 = int(np.quantile(QPSs, 0.70))
+    q80 = int(np.quantile(QPSs, 0.80))
     q90 = int(np.quantile(QPSs, 0.90))
-    q95 = int(np.quantile(QPSs, 0.95))
-    q975 = int(np.quantile(QPSs, 0.975))
-    q99 = int(np.quantile(QPSs, 0.99))
-    q100 = int(np.quantile(QPSs, 1.0))
     if not ret_dict:
-        return mean, q90, q95, q975, q99
+        return q50, q60, q70, q80, q90
     return {
-        "mean": mean,
-        "median": median,
-        "q0": q0,
-        "q25": q25,
-        "q75": q75,
-        "q100": q100
+        "q50": q50,
+        "q60": q60,
+        "q70": q70,
+        "q80": q80,
+        "q90": q90,
     }
 
 if __name__ == "__main__":

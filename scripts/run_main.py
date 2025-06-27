@@ -20,16 +20,16 @@ if __name__ == "__main__":
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
-        # "youtube-1024-angular",
+        "youtube-1024-angular",
         # "msmarco-384-angular",
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
         # (brute_force, "brute_force"),
-        (grid_search, "grid_search"),
-        (random_search, "random_search"),
-        # (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
+        # (grid_search, "grid_search"),
+        # (random_search, "random_search"),
+        (vd_tuner, "vd_tuner"),
+        # (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
         0.90,
@@ -44,13 +44,15 @@ if __name__ == "__main__":
         10,
     ]
 
-    tasks = []
     # Case 1: when recall_min is active
+    tasks = []
     for impl, dataset, (solution_func, solution_name), sampling_count, recall_min in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT, RECALL_MINS
     ):
         tasks.append((impl, dataset, solution_func, solution_name, recall_min, None, sampling_count))
+    run_experiments(tasks=tasks)
     # Case 2: when qps_min is active
+    tasks = []
     for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
     ):

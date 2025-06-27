@@ -69,3 +69,6 @@ class EfSGetter:    # for each M
     
     def clear(self):
         self.__data.clear()
+    
+    def __contains__(self, efC):
+        return efC in self.__data

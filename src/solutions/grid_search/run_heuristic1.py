@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 STEP_M = 2
 STEP_EFC = 16
-STEP_EFS = 16
+STEP_EFS = 32
 
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
@@ -20,7 +20,7 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
         for efC in range(EFC_MIN, EFC_MAX + 1, STEP_EFC)
         if M <= efC
     ]
-    random.shuffle(candidates)  # Shuffle candidates to ensure randomness in the search order
+    # random.shuffle(candidates)  # Shuffle candidates to ensure randomness in the search order
     for M, efC in tqdm(candidates, desc=f"GridSearch[{impl}|{dataset}]", unit="config"):
         efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min) 
         if gd.tuning_time > tuning_budget:

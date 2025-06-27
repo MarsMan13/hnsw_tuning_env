@@ -8,7 +8,7 @@ from joblib import Memory
 
 STEP_M = 2
 STEP_EFC = 16
-STEP_EFS = 16
+STEP_EFS = 32
 
 # memory = Memory("/tmp/grid_search_cache", verbose=0)
 # @memory.cache
@@ -24,7 +24,7 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
         for efS in range(EFS_MIN, EFS_MAX + 1, STEP_EFS)
         if M <= efC
     ]
-    random.shuffle(candidates)  # Shuffle candidates to ensure randomness in the search order
+    # random.shuffle(candidates)  # Shuffle candidates to ensure randomness in the search order
     for M, efC, efS in tqdm(candidates, desc=f"GridSearch[{impl}|{dataset}]", unit="config"):
         recall, qps, total_time, build_time, index_size = gd.get(M=M, efC=efC, efS=efS)
         if gd.tuning_time > tuning_budget:
