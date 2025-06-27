@@ -123,13 +123,11 @@ def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
                 )
         if local_opt:
             get_local_optimal_hyperparameters.append(local_opt)
-    if not get_local_optimal_hyperparameters:
-        print(f"No hyperparameters found with {'recall >= ' + str(recall_min) if recall_min is not None else 'qps >= ' + str(qps_min)}")
     return get_local_optimal_hyperparameters
 
-def save_optimal_hyperparameters(optimal_combi, recall_min=None, qps_min=None, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
+def save_optimal_hyperparameters(impl, dataset, optimal_combi, recall_min=None, qps_min=None, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    save_path = _save_path("optimal_hyperparameters", "_".join(optimal_combi.keys()), f"optimal_hyperparameters_{recall_min}r_{qps_min}q.csv", seed, sampling_count)
+    save_path = _save_path("optimal_hyperparameters", "_".join(optimal_combi.keys()), f"optimal_hyperparameters_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv", seed, sampling_count)
     with open(save_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["solution", "M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
@@ -248,31 +246,43 @@ def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, t
     plt.savefig(save_path)
     plt.close()
 
-def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT, surface=False):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+    
+    if surface:
+        name, ext = os.path.splitext(filename)
+        filename = f"{name}_surface{ext}"
+        
     save_path = _save_path("searched_points", solution, filename, seed, sampling_count)
+    
     M_vals = []
     efC_vals = []
     perf_vals = []
+    
+    # Filter results based on the metric and extract values for plotting
     if recall_min:
-        filtered_results = [
-            (hp[0], hp[1], perf[2])  # T_record, qps
-            for hp, perf in results
-            if perf[0] <= tuning_budget
-            # if perf[1] >= recall_min and perf[0] <= tuning_budget
+        filtered_points = [
+            (hp, perf) for hp, perf in results
+            if perf[1] >= recall_min
         ]
+        perf_idx_to_plot = 2 # QPS
     if qps_min:
-        filtered_results = [
-            (hp[0], hp[1], perf[1])
-            for hp, perf in results
-            if perf[0] <= tuning_budget
-            # if perf[2] >= qps_min and perf[0] <= tuning_budget
+        filtered_points = [
+            (hp, perf) for hp, perf in results
+            if perf[2] >= qps_min
         ]
-    for M, efC, perf in filtered_results:
-        M_vals.append(M)
-        efC_vals.append(efC)
-        perf_vals.append(perf)
+        perf_idx_to_plot = 1 # Recall
+        
+    if not filtered_points:
+        print(f"No valid points to plot for {filename}. Skipping.")
+        return
+    print(len(filtered_points), "points to plot for", filename) 
+    for hp, perf in filtered_points:
+        M_vals.append(hp[0])
+        efC_vals.append(hp[1])
+        perf_vals.append(perf[perf_idx_to_plot])
 
+    # Convert to numpy arrays for plotting
     M_vals = np.array(M_vals)
     efC_vals = np.array(efC_vals)
     perf_vals = np.array(perf_vals)
@@ -282,35 +292,51 @@ def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_mi
     
     global_opt = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
     local_opts = get_local_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
+
     for i, (elev, azim) in enumerate(views):
         ax = fig.add_subplot(3, 3, i + 1, projection='3d')
-        #! TODO: We Use It?
-        # ax.plot_trisurf(efC_vals, M_vals, perf_vals, cmap=cm.viridis, alpha=0.95, edgecolor='none')
-        ax.scatter(efC_vals, M_vals, perf_vals, c=perf_vals, cmap=cm.viridis, s=20, alpha=0.7)
-        for x, y, z in zip(efC_vals, M_vals, perf_vals):
-            ax.plot([x, x], [y, y], [0, z], color='gray', alpha=0.3, linewidth=1)  # Vertical lines to the ground plane
-            if z > 0:   ax.scatter(x, y, 0, color='gray', alpha=0.3, s=5)  # Scatter points on the ground plane
-            else:       ax.scatter(x, y, 0, color="black", alpha=0.95, s=25)
+        
+        # --- KEY CHANGE: Conditional plotting based on the 'surface' flag ---
+        if surface:
+            # Use plot_trisurf to create a surface from the scattered points.
+            ax.plot_trisurf(efC_vals, M_vals, perf_vals, cmap=cm.viridis, alpha=0.8, edgecolor='none')
+        else:
+            # Use scatter for individual points with drop-down lines.
+            ax.scatter(efC_vals, M_vals, perf_vals, c=perf_vals, cmap=cm.viridis, s=20, alpha=0.7)
+            for x, y, z in zip(efC_vals, M_vals, perf_vals):
+                ax.plot([x, x], [y, y], [0, z], color='gray', alpha=0.3, linewidth=1)  # Vertical lines
+                ax.scatter(x, y, 0, color='gray', alpha=0.3, s=5) # Points on the ground plane
+        
         # Plot all local optimal points in red
-        for hp, perf in local_opts:
-            M, efC, efS = hp
-            if (M, efC) == global_opt[0][:2]:
-                continue
-            _, recall, qps, *_ = perf
-            ax.scatter(efC, M, qps if recall_min else recall, color='red', s=50)
-        ax.scatter(global_opt[0][1], global_opt[0][0], global_opt[1][2] if recall_min else global_opt[1][1], color='blue', s=250)
-        ax.set_title(f'View {i + 1}')
-        ax.set_xlabel('efC')
+        if local_opts:
+            for hp, perf in local_opts:
+                M, efC, efS = hp
+                if global_opt and (M, efC) == global_opt[0][:2]:
+                    continue
+                z_val = perf[perf_idx_to_plot]
+                ax.scatter(efC, M, z_val, color='red', s=60, edgecolor='black', depthshade=True, label="Local Optima")
+            
+        # Plot the global optimal point in a distinct color and size
+        if global_opt:
+            global_hp, global_perf = global_opt
+            M_g, efC_g, _ = global_hp
+            z_val_g = global_perf[perf_idx_to_plot]
+            ax.scatter(efC_g, M_g, z_val_g, color='blue', marker='*', s=350, edgecolor='black', depthshade=True, label="Global Optimum")
+
+        ax.set_title(f'View {i + 1} (elev={elev}, azim={azim})')
+        ax.set_xlabel('efConstruction')
         ax.set_ylabel('M')
         ax.set_zlabel('QPS' if recall_min else 'Recall')
+        
         ax.set_xlim(EFC_MIN, EFC_MAX)
         ax.set_ylim(M_MIN, M_MAX)
+        
         ax.view_init(elev=elev, azim=azim)
 
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
-    print(save_path)
+    print(f"3D plot saved to: {save_path}")
 
 def plot_efS_3d(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."

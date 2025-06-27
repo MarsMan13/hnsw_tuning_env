@@ -79,7 +79,9 @@ def _process_single_metric(
         )
     
     save_optimal_hyperparameters(
-        optimal_combi,
+        impl=impl,
+        dataset=dataset,
+        optimal_combi=optimal_combi,
         recall_min=recall_min,
         qps_min=qps_min,
         seed=MOCK_SEED,
