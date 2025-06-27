@@ -263,13 +263,13 @@ def plot_searched_points_3d(results, solution, filename, recall_min=None, qps_mi
     if recall_min:
         filtered_points = [
             (hp, perf) for hp, perf in results
-            if perf[1] >= recall_min
+            if perf[1] >= recall_min and hp[1] % 8 == 0
         ]
         perf_idx_to_plot = 2 # QPS
     if qps_min:
         filtered_points = [
             (hp, perf) for hp, perf in results
-            if perf[2] >= qps_min
+            if perf[2] >= qps_min and hp[1] % 8 == 0
         ]
         perf_idx_to_plot = 1 # Recall
         
