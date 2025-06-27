@@ -7,7 +7,7 @@ def get_qps_metrics_dataset(dataset, ret_dict=False):
     QPSs = [qps for _, qps, *__ in results.values()]
     
     q50 = int(np.quantile(QPSs, 0.50))
-    q60 = int(np.quantile(QPSs, 0.50))
+    q60 = int(np.quantile(QPSs, 0.60))
     q70 = int(np.quantile(QPSs, 0.70))
     q80 = int(np.quantile(QPSs, 0.80))
     q90 = int(np.quantile(QPSs, 0.90))

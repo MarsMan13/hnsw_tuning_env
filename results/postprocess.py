@@ -95,7 +95,7 @@ def main():
         "our_solution",
         "grid_search",
         "random_search",
-        # "vd_tuner",
+        "vd_tuner",
         # "grid_search_heuristic",
         # "random_search_heuristic",
     ]

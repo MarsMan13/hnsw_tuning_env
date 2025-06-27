@@ -1,3 +1,11 @@
+import os
+
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import itertools
 
 from scripts import run_experiments
@@ -25,11 +33,11 @@ if __name__ == "__main__":
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        # (brute_force, "brute_force"),
-        # (grid_search, "grid_search"),
-        # (random_search, "random_search"),
+        (brute_force, "brute_force"),
+        (grid_search, "grid_search"),
+        (random_search, "random_search"),
         (vd_tuner, "vd_tuner"),
-        # (our_solution, "our_solution"),
+        (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
         0.90,

@@ -145,8 +145,21 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
 
     save_path = _save_path("accumulated_timestamp", dirname, filename, seed, sampling_count)
     
-    markers = ['o', 's', '^', 'D', 'p', 'h', '*', 'X', '+', 'v']
-    colors = [cm.get_cmap('tab10')(i) for i in range(10)] # tab10 provides 10 distinct colors
+    markers = {
+        "brute_force":'o', 
+        "our_solution": 's', 
+        "random_search": '^', 
+        "grid_search": 'D', 
+        "vd_tuner": 'p', 
+        # 'h', '*', 'X', '+', 'v'
+    }
+    colors = {
+        "brute_force": cm.get_cmap('tab10')(0),
+        "our_solution": cm.get_cmap('tab10')(1),
+        "random_search": cm.get_cmap('tab10')(2),
+        "grid_search": cm.get_cmap('tab10')(3),
+        "vd_tuner": cm.get_cmap('tab10')(4)
+    }
 
     marker_idx = 0
     color_idx = 0
@@ -186,9 +199,9 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         plt.plot(
             timestamps,
             perf_values,
-            marker=markers[marker_idx % len(markers)],  # Cycle through markers
-            color=colors[color_idx % len(colors)],      # Cycle through colors
-            label=solution
+            marker=markers[solution],  # Cycle through markers
+            color=colors[solution],      # Cycle through colors
+            label=solution if solution != "brute_force" else "oracle_solution"
         )
         marker_idx += 1
         color_idx += 1
