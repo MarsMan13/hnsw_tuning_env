@@ -20,10 +20,10 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 MOCK_SEED = 0
 
 def _process_single_metric(
-    impl: str, 
-    dataset: str, 
-    solutions: list, 
-    recall_min: float = None, 
+    impl: str,
+    dataset: str,
+    solutions: list,
+    recall_min: float = None,
     qps_min: int = None,
     sampling_count: int = None
 ):
@@ -50,7 +50,7 @@ def _process_single_metric(
                 results, recall_min=recall_min, qps_min=qps_min
             )
             hp = optimal_hp[0]
-            _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1] 
+            _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
             optimal_hp = (hp, perf)
             results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
@@ -77,7 +77,7 @@ def _process_single_metric(
         optimal_combi[solution] = get_optimal_hyperparameter(
             results, recall_min=recall_min, qps_min=qps_min
         )
-    
+
     save_optimal_hyperparameters(
         impl=impl,
         dataset=dataset,
@@ -87,7 +87,7 @@ def _process_single_metric(
         seed=MOCK_SEED,
         sampling_count=sampling_count,
     )
-    
+
     # ! 5) TODO for the combined logic can be placed here
 
 
@@ -113,9 +113,9 @@ def main():
     ]
     SAMPLING_COUNT = [
         10,
-        1, 
-        3, 
-        5, 
+        1,
+        3,
+        5,
     ]
     RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
 
@@ -124,7 +124,7 @@ def main():
     #* 1. Create a list to hold all the tasks to be executed.
     # A task is a tuple of arguments for the _process_single_metric function.
     tasks = []
-    
+
     all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)
 
     print("--- Preparing tasks for parallel execution ---")
@@ -137,12 +137,12 @@ def main():
             print(f"  - Queued task: {impl}, {dataset}, recall_min={recall_min}, sampling={sampling_count}")
 
         # Prepare tasks for each qps_min value
-        for qps_min in get_qps_metrics_dataset(dataset):
+        for qps_min in get_qps_metrics_dataset(impl, dataset):
             # Add a tuple of arguments for the worker function
             task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
             tasks.append(task_args)
             print(f"  - Queued task: {impl}, {dataset}, qps_min={qps_min}, sampling={sampling_count}")
-    
+
     print("\n--- All tasks prepared. Starting parallel processing. ---")
 
     #* 2. Use a multiprocessing Pool to execute tasks in parallel.
@@ -152,7 +152,7 @@ def main():
 
         num_processes = 12 if multiprocessing.cpu_count() <= 16 else multiprocessing.cpu_count() - 12
         print(f"Creating a pool of {num_processes} worker processes for {len(tasks)} tasks.")
-        
+
         # 'with' statement ensures the pool is properly closed after use.
         with multiprocessing.Pool(processes=num_processes) as pool:
             # pool.starmap takes a function and an iterable of argument tuples.
@@ -165,7 +165,7 @@ def main():
 
     #* 3. All tasks are completed.
     print("\n--- Parallel processing finished. ---")
-    
+
 if __name__ == "__main__":
     # This check is crucial for multiprocessing to work correctly,
     # especially on Windows and macOS. It prevents child processes from

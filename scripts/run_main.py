@@ -64,6 +64,6 @@ if __name__ == "__main__":
     for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
     ):
-        for qps_min in get_qps_metrics_dataset(dataset):
+        for qps_min in get_qps_metrics_dataset(impl, dataset):
             tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
     run_experiments(tasks=tasks)

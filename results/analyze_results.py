@@ -33,7 +33,7 @@ def worker(params):
     """
     # Unpack parameters for the current task
     solution, impl, dataset, recall_min, qps_min, args = params
-    
+
     # Construct filename and load results
     try:
         if recall_min:
@@ -42,7 +42,7 @@ def worker(params):
         else:
             metric_str = f"{qps_min}q"
             filename = f"{solution}_{impl}_{dataset}_{None}r_{qps_min}q.csv"
-            
+
         print(f"[Worker {os.getpid()}] Processing: {solution}, {impl}, {dataset}, {metric_str}")
         results = load_search_results(solution, filename)
         if not results:
@@ -56,15 +56,15 @@ def worker(params):
         # Print optimal hyperparameters if requested
         if args.optima:
             print_optimal_hyperparameters(results, recall_min=recall_min, qps_min=qps_min)
-            
+
         # Generate 3D graph if requested
         if args.graph:
             plot_searched_points_3d(
-                results, 
-                solution=solution, 
-                filename=f"{solution}_searched_points_3d_{impl}_{dataset}_{metric_str}.png", 
-                recall_min=recall_min, 
-                qps_min=qps_min, 
+                results,
+                solution=solution,
+                filename=f"{solution}_searched_points_3d_{impl}_{dataset}_{metric_str}.png",
+                recall_min=recall_min,
+                qps_min=qps_min,
                 sampling_count=10, # Or pass this as a parameter if it varies
                 surface=args.surface,
             )
@@ -77,7 +77,7 @@ def main():
     Main function to set up and run the parallel analysis.
     """
     args = parse_args()
-    
+
     # --- Configuration for the experiments ---
     SOLUTIONS = ["brute_force"]
     IMPLS = ["faiss", "hnswlib"]
@@ -88,10 +88,10 @@ def main():
         "youtube-1024-angular"
     ]
     RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
-    
+
     # --- Prepare a list of all tasks to be executed ---
     tasks = []
-    
+
     # 1. Prepare tasks for recall_min constraint
     recall_tasks_params = itertools.product(SOLUTIONS, IMPLS, DATASETS, RECALL_MINS)
     for solution, impl, dataset, recall_min in recall_tasks_params:
@@ -101,9 +101,9 @@ def main():
     # 2. Prepare tasks for qps_min constraint
     qps_tasks_params = itertools.product(SOLUTIONS, IMPLS, DATASETS)
     for solution, impl, dataset in qps_tasks_params:
-        for qps_min in get_qps_metrics_dataset(dataset=dataset):
+        for qps_min in get_qps_metrics_dataset(impl=impl, dataset=dataset):
             tasks.append((solution, impl, dataset, None, qps_min, args))
-            
+
     print(f"--- Starting parallel analysis for {len(tasks)} tasks using {args.cores} cores ---")
 
     # --- Run tasks in parallel using a multiprocessing Pool ---
@@ -115,7 +115,7 @@ def main():
                 print(f"({i}/{len(tasks)}) Task finished: {result}")
     except Exception as e:
         print(f"A critical error occurred in the main pool: {e}")
-        
+
     print("--- All analysis tasks completed. ---")
 
 if __name__ == "__main__":
