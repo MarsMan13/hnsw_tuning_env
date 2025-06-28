@@ -118,7 +118,7 @@ def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_
 
             perf_mid1 = get_max_perf(results, M_mid1, recall_min=recall_min, qps_min=qps_min)
             perf_mid2 = get_max_perf(results, M_mid2, recall_min=recall_min, qps_min=qps_min)
-            print(f"M : {M_mid1} -> {perf_mid1}, M : {M_mid2} -> {perf_mid2}\n")
+            print(f"{M_left} < {M_mid1} -> {perf_mid1} < M : {M_mid2} -> {perf_mid2} < {M_right}\n")
             
             _M_to_perf.append((M_mid1, perf_mid1, M_left, M_right))
             _M_to_perf.append((M_mid2, perf_mid2, M_left, M_right))
@@ -128,6 +128,8 @@ def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_
                 else:
                     M_right = M_mid2
                 continue
+            perf_mid1 = perf_mid1 * 0.95 if recall_min else perf_mid1
+            perf_mid2 = perf_mid2 * 0.95 if qps_min else perf_mid2
             if perf_mid1 <= perf_mid2:
                 M_left = M_mid1
             else:
@@ -187,10 +189,10 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     return results
 
 def run_recall_min_experiments():    
-    for RECALL_MIN in [0.95]:
+    for RECALL_MIN in [0.99]:
     # for RECALL_MIN in [0.90, 0.95, 0.975]:
-        # for IMPL in ["hnswlib", "faiss"]:
-        for IMPL in ["milvus"]:
+        for IMPL in ["faiss"]:
+        # for IMPL in ["milvus"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
