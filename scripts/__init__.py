@@ -11,7 +11,7 @@ from src.solutions.our_solution.run import run as our_solution
 from src.solutions.grid_search.run import run as grid_search
 from src.utils import is_already_saved
 
-NUM_CORES = 12 if os.cpu_count() <= 16 else os.cpu_count() - 16
+NUM_CORES = 16 if os.cpu_count() <= 20 else os.cpu_count() - 16
 ## Configuration lists (these can remain global or passed as arguments to run_experiments)
 IMPLS = [
     "hnswlib",
@@ -54,8 +54,8 @@ def worker_function(params):
     impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count = params
     try:
         if is_already_saved(
-            solution=solution_name, 
-            filename=f"{solution_name}_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv", 
+            solution=solution_name,
+            filename=f"{solution_name}_{impl}_{dataset}_{recall_min}r_{qps_min}q.csv",
             sampling_count=sampling_count
         ):
             print(f"Skipping {solution_name} for {impl} on {dataset} (already saved)")
@@ -66,7 +66,7 @@ def worker_function(params):
             }
         print(f"recall_min: {recall_min}")
         results = solution_func(
-            impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min, 
+            impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min,
             sampling_count=sampling_count, env=(TUNING_BUDGET, SEED)
         )
         postprocess_results(
@@ -87,7 +87,7 @@ def worker_function(params):
         }
     except Exception as e:
         print(f"Error in {solution_name} for {impl} on {dataset}: {e}")
-        return None 
+        return None
 
 def run_experiments(
     tasks, num_cores:int = NUM_CORES
@@ -96,8 +96,8 @@ def run_experiments(
     * tasks = [task]
     * task = (impl, dataset, solution_func, solution_name, recall_min, qps_min, sampling_count)
     """
-    multiprocessing.set_start_method('spawn', force=True) 
-    
+    multiprocessing.set_start_method('spawn', force=True)
+
     # Use multiprocessing.Pool to run tasks in parallel
     with multiprocessing.Pool(processes=num_cores, maxtasksperchild=1) as pool:
         # maxtasksperchild=1 ensures each child process is fresh after one task,
