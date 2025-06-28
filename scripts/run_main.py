@@ -58,9 +58,7 @@ if __name__ == "__main__":
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT, RECALL_MINS
     ):
         tasks.append((impl, dataset, solution_func, solution_name, recall_min, None, sampling_count))
-    run_experiments(tasks=tasks)
     # Case 2: when qps_min is active
-    tasks = []
     for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
     ):

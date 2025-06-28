@@ -35,17 +35,17 @@ def recall_min():
 
 def qps_min():
     tuning_budget = float("inf")
-    for QPS_MIN in [2500, 5000, 10000, 25000]:
-    # for QPS_MIN in [2500]:
-        for IMPL in ["hnswlib", "faiss"]:
-        # for IMPL in ["faiss"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            # for DATASET in ["nytimes-256-angular"]:
+    # for QPS_MIN in [2500, 5000, 10000, 25000]:
+    for QPS_MIN in [58939]:
+        # for IMPL in ["hnswlib", "faiss"]:
+        for IMPL in ["hnswlib"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
+            for DATASET in ["nytimes-256-angular"]:
                 results = run(IMPL, DATASET, qps_min=QPS_MIN, tuning_budget=tuning_budget)
                 print_optimal_hyperparameters(results, qps_min=QPS_MIN)
                 postprocess_results(results, solution="brute_force", impl=IMPL, dataset=DATASET, qps_min=QPS_MIN, tuning_budget=tuning_budget)
 
 
 if __name__ == "__main__":
-    recall_min()
-    # qps_min()
+    # recall_min()
+    qps_min()

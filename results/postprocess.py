@@ -18,7 +18,6 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 #     plot_searched_points_3d(results, SOLUTION, f"{_FILENAME}_searched_points_3d.png", recall_min=RECALL_MIN)
 
 MOCK_SEED = 0
-
 def _process_single_metric(
     impl: str,
     dataset: str,
@@ -77,7 +76,6 @@ def _process_single_metric(
         optimal_combi[solution] = get_optimal_hyperparameter(
             results, recall_min=recall_min, qps_min=qps_min
         )
-
     save_optimal_hyperparameters(
         impl=impl,
         dataset=dataset,
@@ -87,7 +85,6 @@ def _process_single_metric(
         seed=MOCK_SEED,
         sampling_count=sampling_count,
     )
-
     # ! 5) TODO for the combined logic can be placed here
 
 
@@ -102,20 +99,21 @@ def main():
         # "random_search_heuristic",
     ]
     IMPLS = [
-        "faiss",
-        "hnswlib"
+        # "faiss",
+        # "hnswlib",
+        "milvus",
     ]
     DATASETS = [
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
-        "youtube-1024-angular",
+        # "youtube-1024-angular",
     ]
     SAMPLING_COUNT = [
         10,
-        1,
-        3,
-        5,
+        # 1,
+        # 3,
+        # 5,
     ]
     RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
 
@@ -165,6 +163,23 @@ def main():
 
     #* 3. All tasks are completed.
     print("\n--- Parallel processing finished. ---")
+
+def test():
+    for sampling_count in [10, 5, 3, 1]:
+        _process_single_metric(
+            impl="faiss",
+            dataset="nytimes-256-angular",
+            solutions=[
+                "brute_force",
+                "our_solution",
+                "grid_search",
+                "random_search",
+                "vd_tuner",
+            ],
+            recall_min=0.975,
+            qps_min=None,
+            sampling_count=sampling_count
+        )
 
 if __name__ == "__main__":
     # This check is crucial for multiprocessing to work correctly,

@@ -122,7 +122,12 @@ def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_
             
             _M_to_perf.append((M_mid1, perf_mid1, M_left, M_right))
             _M_to_perf.append((M_mid2, perf_mid2, M_left, M_right))
-
+            if perf_mid1 == 0 and perf_mid2 == 0:
+                if recall_min is not None:
+                    M_left = M_mid1
+                else:
+                    M_right = M_mid2
+                continue
             if perf_mid1 <= perf_mid2:
                 M_left = M_mid1
             else:
@@ -185,22 +190,22 @@ def run_recall_min_experiments():
     for RECALL_MIN in [0.95]:
     # for RECALL_MIN in [0.90, 0.95, 0.975]:
         # for IMPL in ["hnswlib", "faiss"]:
-        for IMPL in ["hnswlib"]:
+        for IMPL in ["milvus"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
-            # for DATASET in ["dbpediaentity-768-angular"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
+            for DATASET in ["glove-100-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
-                results = run(IMPL, DATASET, recall_min=None, qps_min=10000, tuning_budget=TUNING_BUDGET)
+                results = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET)
                 # print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
                 postprocess_results(
                     results, solution="our_solution", impl=IMPL, dataset=DATASET, 
                     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
 
 def run_qps_min_experiments():
-    for QPS_MIN in [58939]:
-        for IMPL in ["hnswlib"]:
-            for DATASET in ["nytimes-256-angular"]:
+    for QPS_MIN in [8567]:
+        for IMPL in ["milvus"]:
+            for DATASET in ["glove-100-angular"]:
             # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
                 results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
@@ -209,4 +214,5 @@ def run_qps_min_experiments():
                 #     qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
 
 if __name__ == "__main__":
-    run_qps_min_experiments()
+    run_recall_min_experiments()
+    # run_qps_min_experiments()

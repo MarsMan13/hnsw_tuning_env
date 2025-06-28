@@ -23,7 +23,7 @@ def _find_best_efc_for_m(M, ground_truth:GroundTruth, results, get_perf, recall_
         _efS_getters[M] = EfSGetter()
     efS_getter = _efS_getters[M]
     
-    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2     # ! Logic preserved as per request.
+    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 3     # ! Logic preserved as per request.
     # efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 2 # ! Logic preserved as per request.
     efC_count = 0
     max_perf_of_M = 0.0

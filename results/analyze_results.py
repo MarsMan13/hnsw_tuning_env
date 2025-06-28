@@ -13,7 +13,7 @@ import argparse
 import itertools
 import multiprocessing
 
-from src.utils import load_search_results, plot_searched_points_3d
+from src.utils import load_search_results, plot_searched_points_3d, plot_multi_accumulated_timestamp
 from src.solutions import print_optimal_hyperparameters
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("-o", "--optima", action="store_true", default=False, help="Print optimal hyperparameters.")
     parser.add_argument("-g", "--graph", action="store_true", default=False, help="Generate 3D plots.")
     parser.add_argument("--surface", action="store_true", default=False, help="Use surface plot instead of scatter for 3D graphs.")
+    parser.add_argument("--accumulated", action="store_true", default=False, help="Generate accumulated timestamp plots.")
     parser.add_argument("--cores", type=int, default=8, help="Number of CPU cores to use for parallel processing.")
     return parser.parse_args()
 
@@ -50,7 +51,6 @@ def worker(params):
             return f"No results for {filename}"
     except Exception as e:
         return f"Error loading {filename}: {e}"
-
     # --- Perform analysis based on arguments ---
     try:
         # Print optimal hyperparameters if requested
@@ -68,6 +68,13 @@ def worker(params):
                 sampling_count=10, # Or pass this as a parameter if it varies
                 surface=args.surface,
             )
+        if args.accumulated:
+            plot_multi_accumulated_timestamp(
+                {solution: results},
+                dirname=solution,
+                filename=f"{solution}_multi_accumulated_timestamp_{impl}_{dataset}_{recall_min}r_{qps_min}q.png", 
+                recall_min=recall_min, qps_min=qps_min
+            )
         return f"Successfully processed {filename}"
     except Exception as e:
         return f"Error processing {filename}: {e}"
@@ -79,13 +86,22 @@ def main():
     args = parse_args()
 
     # --- Configuration for the experiments ---
-    SOLUTIONS = ["brute_force"]
-    IMPLS = ["faiss", "hnswlib"]
+    SOLUTIONS = [
+        "brute_force",
+        # "grid_search",
+        # "random_search",
+        # "vd_tuner",
+    ]
+    IMPLS = [
+        # "faiss", 
+        # "hnswlib",
+        "milvus"
+    ]
     DATASETS = [
         "glove-100-angular",
         "nytimes-256-angular",
         "sift-128-euclidean",
-        "youtube-1024-angular"
+        # "youtube-1024-angular"
     ]
     RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
 
