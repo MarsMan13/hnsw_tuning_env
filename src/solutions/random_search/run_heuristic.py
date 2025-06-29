@@ -14,13 +14,13 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
         efC = random.randint(8, 512)
         if (M, efC) in searched_hp:
             continue
-        searched_hp.add((M, efC))
         efS = gd.get_efS(M, efC, target_recall=recall_min, target_qps=qps_min)
         if gd.tuning_time > tuning_budget:
             print(f"Tuning time out")
             break
         perf = gd.get(M=M, efC=efC, efS=efS)
         results.append(((M, efC, efS), (gd.tuning_time, *perf)))
+        searched_hp.add((M, efC))
     return results
 
 def recall_min():    

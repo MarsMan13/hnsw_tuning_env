@@ -1,157 +1,272 @@
+
+#* Heuristic 3: Ternary Search for effectively searching hyperparameter M
+
 import math
 import random
+from typing import List, Tuple, Dict, Any
 
 from src.constants import DATASET, IMPL, EFS_MIN, EFS_MAX, SEED, TUNING_BUDGET, RECALL_MIN, EFC_MIN, EFC_MAX, M_MIN, M_MAX
 from src.solutions import postprocess_results, print_optimal_hyperparameters
-from src.solutions.our_solution.utils import EfCGetter, EfSGetter, get_max_perf
+from src.solutions.our_solution.utils import EfCGetter, EfSGetter
 from data.ground_truths.ground_truth import GroundTruth
-from functools import cmp_to_key
-from joblib import Memory
 
-random.seed(SEED)
+# --- Constants for the tuning algorithm ---
+# Description for TERNARY_SEARCH_BASE:
+# Base for the logarithm to determine efC iteration limit. A larger value leads to fewer iterations.
+TERNARY_SEARCH_BASE = 2.5 
+# Description for TERNARY_SEARCH_FACTOR:
+# Factor to divide the iteration limit, further controlling the search granularity.
+TERNARY_SEARCH_FACTOR = 3 
+# Description for QPS_PERF_PENALTY:
+# Penalty applied to performance when maximizing recall, to break ties.
+QPS_PERF_PENALTY = 0.95
 
-# --- Global variables for tracking search state ---
-_M_to_perf = [] # [(M, max_perf, efC_left, efC_right), ...]
-_searched_hp = set()
-_efC_getter = EfCGetter()
-_efS_getters = dict()
-
-def _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget):
-    
-    # efC_left, efC_right = EFC_MIN, EFC_MAX
-    efC_left, efC_right = _efC_getter.get(M)
-    # efC_left, efC_right = max(0.9 * efC_left, EFC_MIN), min(1.1 * efC_right, EFC_MAX)
-    if M not in _efC_getter:
-        _efS_getters[M] = EfSGetter()
-    efS_getter = _efS_getters[M]
-    
-    efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 3)) // 2     # ! Logic preserved as per request.
-    # efC_iter_limit = math.ceil(math.log(EFC_MAX - EFC_MIN, 2.5)) // 2 # ! Logic preserved as per request.
-    efC_count = 0
-    max_perf_of_M = 0.0
-    while 3 < efC_right - efC_left and efC_count < efC_iter_limit:
-        efC_count += 1
+class HyperparameterTuner:
+    """
+    Encapsulates the entire hyperparameter tuning process to avoid global state
+    and improve code structure.
+    """
+    def __init__(self, ground_truth: GroundTruth, recall_min: float = None, qps_min: float = None, tuning_budget: float = TUNING_BUDGET):
+        assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
         
-        efC_mid1 = efC_left + (efC_right - efC_left) // 3
-        efC_mid2 = efC_right - (efC_right - efC_left) // 3
+        self.ground_truth = ground_truth
+        self.recall_min = recall_min
+        self.qps_min = qps_min
+        self.tuning_budget = tuning_budget
         
-        efS_mid1_min, efS_mid1_max = efS_getter.get(efC_mid1)
-        efS_mid2_min, efS_mid2_max = efS_getter.get(efC_mid2)
-        efS_mid1 = ground_truth.get_efS(M, efC_mid1, recall_min, qps_min, efS_min=efS_mid1_min, efS_max=efS_mid1_max)
+        # --- State variables ---
+        self.results: List[Tuple[Tuple, Tuple]] = []
+        self.m_to_perf: List[Tuple[int, float]] = []
+        self.searched_hp: set = set()   #* set of (M, efC, efS) tuples
+        self.efC_getter = EfCGetter()
+        self.efS_getters: Dict[int, EfSGetter] = {} #* M -> EfSGetter
 
-        if ground_truth.tuning_time > exploration_budget:
-            raise TimeoutError("Tuning time out during efS search")
-        tt1 = ground_truth.tuning_time
+    def _get_perf(self, perf: Tuple[float, float]) -> float:
+        """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
+        # perf is a tuple of (recall, qps)
+        return perf[0] if self.qps_min is not None else perf[1]
 
-        efS_mid2 = ground_truth.get_efS(M, efC_mid2, recall_min, qps_min, efS_min=efS_mid2_min, efS_max=efS_mid2_max)
-        if ground_truth.tuning_time > exploration_budget:
-            raise TimeoutError("Tuning time out during efS search")
-        tt2 = ground_truth.tuning_time
+    def run_tuning(self) -> List[Tuple[Tuple, Tuple]]:
+        """Executes the full tuning process, including exploration and exploitation phases."""
+        print("--- Starting Exploration Phase ---")
+        self._exploration_phase()
         
-        efS_getter.put(efC_mid1, efS_mid1)
-        efS_getter.put(efC_mid2, efS_mid2)
-        perf_mid1 = ground_truth.get(M, efC_mid1, efS_mid1)
-        perf_mid2 = ground_truth.get(M, efC_mid2, efS_mid2)
+        remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
+        if remaining_budget > 0:
+            print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
+            self._exploitation_phase()
+            
+        print("\n--- Tuning is Done! ---")
+        print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
+        return self.results
 
-        hp1 = (M, efC_mid1, efS_mid1)
-        if hp1 not in _searched_hp:
-            _searched_hp.add(hp1)
-            results.append((hp1, (tt1, *perf_mid1)))
+    def _exploration_phase(self):
+        """
+        Broadly searches the 'M' parameter space using a ternary search-like approach
+        to identify promising regions.
+        """
+        m_left, m_right = M_MIN, M_MAX
+        processed_m = set()
 
-        hp2 = (M, efC_mid2, efS_mid2)
-        if hp2 not in _searched_hp:
-            _searched_hp.add(hp2)
-            results.append((hp2, (tt2, *perf_mid2)))
+        try:
+            # Ternary search for M
+            while (m_right - m_left) > 3:
+                if self.ground_truth.tuning_time > self.tuning_budget:
+                    raise TimeoutError("Tuning budget exceeded during M exploration.")
+                
+                m_mid1 = m_left + (m_right - m_left) // 3
+                m_mid2 = m_right - (m_right - m_left) // 3
 
-        if get_perf(perf_mid1) <= get_perf(perf_mid2):
-            efC_left = efC_mid1
-        else:
-            efC_right = efC_mid2
+                # Process mid1 if not already done
+                if m_mid1 not in processed_m:
+                    perf_mid1 = self._find_best_efc_for_m(m_mid1)
+                    self.m_to_perf.append((m_mid1, perf_mid1))
+                    processed_m.add(m_mid1)
+                
+                # Process mid2 if not already done
+                if m_mid2 not in processed_m:
+                    perf_mid2 = self._find_best_efc_for_m(m_mid2)
+                    self.m_to_perf.append((m_mid2, perf_mid2))
+                    processed_m.add(m_mid2)
+                
+                # Find the performances from the list as they might have been calculated in a previous step
+                perf_mid1 = next((p for m, p in self.m_to_perf if m == m_mid1), 0.0)
+                perf_mid2 = next((p for m, p in self.m_to_perf if m == m_mid2), 0.0)
+
+                print(f"\n[M Exploration] Range [{m_left}, {m_right}]: M1({m_mid1}) -> {perf_mid1:.4f}, M2({m_mid2}) -> {perf_mid2:.4f}")
+
+                # Heuristic to shrink the search space for M
+                if perf_mid1 == perf_mid2:
+                    # If performances are equal, shrink the space based on the optimization goal.
+                    # This heuristic assumes QPS-maximization favors larger M, and Recall-maximization favors smaller M.
+                    if self.recall_min is not None:
+                        m_left = m_mid1
+                    else:
+                        m_right = m_mid2
+                else:
+                    # Apply a penalty when maximizing for recall to prefer higher QPS in case of similar recalls
+                    penalized_perf1 = perf_mid1 * QPS_PERF_PENALTY if self.recall_min is not None else perf_mid1
+                    if penalized_perf1 <= perf_mid2:
+                        m_left = m_mid1
+                    else:
+                        m_right = m_mid2
+            
+            # Exhaustive search in the final small range of M
+            for m_val in range(m_left, m_right + 1):
+                if m_val not in processed_m:
+                    perf = self._find_best_efc_for_m(m_val)
+                    self.m_to_perf.append((m_val, perf))
+                    processed_m.add(m_val)
+
+        except TimeoutError as e:
+            print(f"Timeout: {e}")
+
+    def _exploitation_phase(self):
+        """
+        Focuses on the most promising 'M' values found during the exploration phase
+        and performs a more detailed search for efC.
+        """
+        if not self.m_to_perf:
+            print("Warning: No M configurations found to exploit.")
+            return
+
+        # Sort M by performance in descending order
+        sorted_m_configs = sorted(self.m_to_perf, key=lambda x: x[1], reverse=True)
         
-        max_perf_of_M = max(max_perf_of_M, get_perf(perf_mid1), get_perf(perf_mid2))
-        # print(f"\t\t[{M}] - efC: {efC_mid1} -> {get_perf(perf_mid1):.4f}, efC: {efC_mid2} \
-        #         -> {get_perf(perf_mid2):.4f} -> Max Perf for M: {max_perf_of_M:.4f}")
+        try:
+            for m_val, _ in sorted_m_configs:
+                if self.ground_truth.tuning_time > self.tuning_budget:
+                    raise TimeoutError("Tuning budget exceeded during exploitation.")
+                print(f"\n[Exploitation] Refining M={m_val}...")
+                self._find_best_efc_for_m(m_val, is_exploitation=True)
+        except TimeoutError as e:
+            print(f"Timeout: {e}")
 
-    _efC_getter.put(M, efC_left, efC_right)
-    _M_to_perf.append((M, max_perf_of_M, efC_left, efC_right))
-    # print(f"\tM : {M} -> {max_perf_of_M:.4f}")
-    return max_perf_of_M
 
-def _exploration_phase(results, ground_truth: GroundTruth, recall_min=None, qps_min=None, exploration_budget=TUNING_BUDGET):
-    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    
-    get_perf = lambda perf: perf[1] if recall_min else perf[0]
-    M_left, M_right = M_MIN, M_MAX
-    _M_to_perf = []
-    processed_M = set([m for m, *_ in _M_to_perf])
-    M_to_searched = random.shuffle(list(range(M_left, M_right+1)))
-    try:
-        for M in M_to_searched:    
-            _find_best_efc_for_m(M, ground_truth, results, get_perf, recall_min, qps_min, exploration_budget)
-            processed_M.add(M)
-            perf_mid = get_max_perf(results, M, recall_min=recall_min, qps_min=qps_min)
-            _M_to_perf.append((M, perf_mid, M_left, M_right))
-    except TimeoutError as e:
-        print(f"Exploration Time Out! Details: {e}")
-    _M_to_perf = _M_to_perf[::-1]
-    for M, perf, M_left_debug, M_right_debug in _M_to_perf:
-        print(f"{M} {round(float(perf))} {M_left_debug} {M_right_debug}")
-
-def _exploitation_phase(results, ground_truth:GroundTruth, exploitation_budget, recall_min=None, qps_min=None):
-    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
-    gd = ground_truth
-    get_perf = lambda perf: perf[1] if recall_min else perf[0]
-    if not _M_to_perf:
-        print("No M to perf found in exploration phase.")
-        return
-    sorted_M_configs = sorted(_M_to_perf, key=lambda x: x[1], reverse=True)
-    print
-    try:
-        for M, max_perf, efC_left, efC_right in sorted_M_configs:
-            if gd.tuning_time > exploitation_budget:
-                print("Exploitation budget exceeded!")
+    def _find_best_efc_for_m(self, m: int, is_exploitation: bool = False) -> float:
+        """
+        Finds the best efC for a given M by performing a search over the efC space.
+        """
+        efc_left, efc_right = self.efC_getter.get(m)
+        if m not in self.efS_getters:
+            self.efS_getters[m] = EfSGetter()
+        
+        efs_getter = self.efS_getters[m]
+        
+        efc_iter_limit = (math.ceil(math.log(EFC_MAX - EFC_MIN, TERNARY_SEARCH_BASE)) // TERNARY_SEARCH_FACTOR 
+                          if not is_exploitation else EFC_MAX)
+        
+        max_perf_of_m = 0.0
+        efc_count = 0
+        
+        # Ternary search for efC
+        while (efc_right - efc_left) > 3 and efc_count < efc_iter_limit:
+            if self.ground_truth.tuning_time > self.tuning_budget:
                 break
-            _find_best_efc_for_m(M, gd, results, get_perf, recall_min, qps_min, exploitation_budget)
-        print(f"All M values explored in exploitation phase: {len(sorted_M_configs)}")
-    except TimeoutError:
-        print("Exploitation Time Out!")
-    searched_M = list(set(m for (m, *_), _ in results))
-    searched_M.sort()
+            
+            efc_count += 1
+            efc_mid1 = efc_left + (efc_right - efc_left) // 3
+            efc_mid2 = efc_right - (efc_right - efc_left) // 3
+            
+            # Evaluate performance for the two middle points
+            perf_mid1 = self._evaluate_hp(m, efc_mid1, efs_getter)
+            perf_mid2 = self._evaluate_hp(m, efc_mid2, efs_getter)
+            
+            # Update search range based on performance
+            if perf_mid1 <= perf_mid2:
+                efc_left = efc_mid1
+            else:
+                efc_right = efc_mid2
+            
+            # This is a critical heuristic. Updating the global efC range here can
+            # aggressively prune the search space, but it might also prematurely
+            # narrow it based on incomplete information.
+            self.efC_getter.put(m, efc_left, efc_right)
+            
+            max_perf_of_m = max(max_perf_of_m, perf_mid1, perf_mid2)
+            print(f"\t[efC Search for M={m}] Range [{efc_left}, {efc_right}]: efC1({efc_mid1}) -> {perf_mid1:.4f}, efC2({efc_mid2}) -> {perf_mid2:.4f}")
 
-# memory = Memory("/tmp/our_solution_cache", verbose=0)
-# @memory.cache
+        # Exhaustive search in the final small range of efC
+        for efc in range(efc_left, efc_right + 1):
+            if efc_count >= efc_iter_limit or self.ground_truth.tuning_time > self.tuning_budget:
+                break
+            if efc in efs_getter:
+                continue
+                
+            efc_count += 1
+            perf = self._evaluate_hp(m, efc, efs_getter)
+            max_perf_of_m = max(max_perf_of_m, perf)
+
+        print(f"\t=> Max performance for M={m}: {max_perf_of_m:.4f}")
+        return max_perf_of_m
+
+    def _evaluate_hp(self, m: int, efc: int, efs_getter: EfSGetter) -> float:
+        """
+        Evaluates a single hyperparameter configuration (M, efC, efS), stores the result,
+        and returns its performance.
+        """
+        if self.ground_truth.tuning_time > self.tuning_budget:
+            return 0.0
+
+        efs_min, efs_max = efs_getter.get(efc)
+        efs = self.ground_truth.get_efS(m, efc, self.recall_min, self.qps_min, efS_min=efs_min, efS_max=efs_max)
+        
+        # After finding the optimal efS, put it back for future inferences.
+        efs_getter.put(efc, efs)
+        
+        hp = (m, efc, efs)
+        if hp in self.searched_hp:
+            # Find existing result if already searched
+            existing_result = next(res for h, res in self.results if h == hp)
+            return self._get_perf(existing_result[1:])
+        
+        # Get performance from ground truth
+        perf_tuple = self.ground_truth.get(m, efc, efs)
+        
+        # Store results
+        self.searched_hp.add(hp)
+        self.results.append((hp, (self.ground_truth.tuning_time, *perf_tuple)))
+        
+        return self._get_perf(perf_tuple)
+
+
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
-    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     random.seed(SEED)
-    gd = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
-    _M_to_perf.clear()
-    _searched_hp.clear()
-    _efC_getter.clear()
-    _efS_getters.clear()
-    results = []
-    _exploration_phase(results, gd, recall_min, qps_min, tuning_budget)
-    print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-    # exploitation_tuning_budget = tuning_budget - gd.tuning_time
-    # if exploitation_tuning_budget > 0:
-    #     print(f"Exploitation tuning budget: {exploitation_tuning_budget}")
-    #     _exploitation_phase(results, gd, tuning_budget, recall_min, qps_min)
-    #     print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-    print("Tuning is done!")
+    ground_truth = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
+    
+    tuner = HyperparameterTuner(ground_truth, recall_min, qps_min, tuning_budget)
+    results = tuner.run_tuning()
     
     return results
 
-if __name__ == "__main__":
-    for RECALL_MIN in [0.95]:
+def run_recall_min_experiments():    
+    for RECALL_MIN in [0.90]:
     # for RECALL_MIN in [0.90, 0.95, 0.975]:
-        # for IMPL in ["hnswlib", "faiss"]:
-        for IMPL in ["hnswlib"]:
+        for IMPL in ["faiss"]:
+        # for IMPL in ["milvus"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
-            for DATASET in ["dbpediaentity-768-angular"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
+            for DATASET in ["glove-100-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
-                results = run(IMPL, DATASET, recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
+                results = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET)
                 # print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-                postprocess_results(
-                    results, solution="our_solution", impl=IMPL, dataset=DATASET, 
-                    recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
+                # postprocess_results(
+                #     results, solution="our_solution", impl=IMPL, dataset=DATASET, 
+                #     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
+
+def run_qps_min_experiments():
+    for QPS_MIN in [18268]:
+        for IMPL in ["faiss"]:
+            for DATASET in ["glove-100-angular"]:
+            # for DATASET in ["dbpediaentity-768-angular"]:
+                print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
+                results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
+                # postprocess_results(
+                #     results, solution="our_solution", impl=IMPL, dataset=DATASET, 
+                #     qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
+
+# The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
+if __name__ == "__main__":
+    run_recall_min_experiments()
+    # run_qps_min_experiments()

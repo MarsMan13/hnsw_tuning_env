@@ -48,14 +48,14 @@ class KnobStand:
             return zero_one_val
 
 class MockEnv:
-    def __init__(self, model:GroundTruth=None, knob_path=None, tuning_budget=TUNING_BUDGET, use_efS=True) -> None:
+    def __init__(self, model:GroundTruth=None, knob_path=None, tuning_budget=TUNING_BUDGET, search_efS=True) -> None:
         self.model = model
         self.knob_stand = KnobStand(knob_path)
         self.names = list(self.knob_stand.knobs_detail.keys())
         self.t1 = time.time()
         self.tuning_budget = tuning_budget
         self.sampled_times = 0
-        self.use_efS = use_efS
+        self.search_efS = search_efS
         #### 
         self.X_record = []
         self.Y1_record = [] #* all QPS
@@ -70,12 +70,13 @@ class MockEnv:
             print(f"conf_value : {conf_value}")
             _M = conf_value[1]
             _efC = conf_value[2]
-            _efS = conf_value[3] if self.use_efS else _efC
+            _efS = conf_value[3] if self.search_efS else _efC
             y = self.model.get(M=_M, efC=_efC, efS=_efS)
             y1 = y[1]   #* QPS (It's not a mistake, y[1] is QPS)
             y2 = y[0]   #* recall
             y3 = y[2]   #* total time
-            if self.model.tuning_time > self.tuning_budget:
+            if self.model.tuning_time + (time.time() - self.t1) > self.tuning_budget:
+                print(f"{self.model.tuning_time} + {time.time() - self.t1} = {self.model.tuning_time + time.time() - self.t1} > {self.tuning_budget}")
                 raise TimeoutError("Tuning budget exceeded")
             self.X_record.append((_M, _efC, _efS))  #* (M, efC, efS)
             self.Y1_record.append(y1)

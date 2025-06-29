@@ -99,15 +99,15 @@ def main():
         # "random_search_heuristic",
     ]
     IMPLS = [
-        # "faiss",
-        # "hnswlib",
-        "milvus",
+        "faiss",
+        "hnswlib",
+        # "milvus",
     ]
     DATASETS = [
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
-        # "youtube-1024-angular",
+        "youtube-1024-angular",
     ]
     SAMPLING_COUNT = [
         10,
@@ -115,7 +115,7 @@ def main():
         # 3,
         # 5,
     ]
-    RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
+    RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
 
     # --- Start of multiprocessing modification ---
 

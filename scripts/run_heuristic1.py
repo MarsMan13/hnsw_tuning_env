@@ -13,8 +13,8 @@ from scripts import IMPLS, DATASETS, SOLUTIONS, RECALL_MINS, QPS_MINS
 
 from src.constants import MAX_SAMPLING_COUNT
 from src.solutions.our_solution.run import run as our_solution
-from src.solutions.random_search.run_heuristic1 import run as random_search_heuristic
-from src.solutions.grid_search.run_heuristic1 import run as grid_search_heuristic
+from src.solutions.random_search.run_heuristic import run as random_search_heuristic
+from src.solutions.grid_search.run_heuristic import run as grid_search_heuristic
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 if __name__ == "__main__":

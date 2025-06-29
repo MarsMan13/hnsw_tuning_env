@@ -97,30 +97,17 @@ def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
                     best_metric = recall
                 else:
                     continue
-            if hasattr(recall, "item"):
-                local_opt = (
-                    (M, efC, efS),
-                    (
-                        round(tuning_time.item(), 2),
-                        round(recall.item(), 3),
-                        round(qps.item(), 2),
-                        round(total_time.item(), 2),
-                        round(build_time.item(), 2),
-                        int(index_size),
-                    ),
+            local_opt = (
+                (M, efC, efS),
+                (
+                    round(tuning_time.item(), 2) if hasattr(tuning_time, "item") else round(tuning_time, 2),
+                    round(recall.item(), 3) if hasattr(recall, "item") else round(recall, 3),
+                    round(qps.item(), 2) if hasattr(qps, "item") else round(qps, 2),
+                    round(total_time.item(), 2) if hasattr(total_time, "item") else round(total_time, 2),
+                    round(build_time.item(), 2) if hasattr(build_time, "item") else round(build_time, 2),
+                    int(index_size)
                 )
-            else:
-                local_opt = (
-                    (M, efC, efS),
-                    (
-                        round(tuning_time, 2),
-                        round(recall, 3),
-                        round(qps, 2),
-                        round(total_time, 2),
-                        round(build_time, 2),
-                        int(index_size),
-                    ),
-                )
+            )
         if local_opt:
             get_local_optimal_hyperparameters.append(local_opt)
     return get_local_optimal_hyperparameters
@@ -148,7 +135,8 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "our_solution": 's', 
         "random_search": '^', 
         "grid_search": 'D', 
-        "vd_tuner": 'p', 
+        "vd_tuner": 'p',
+        "test_solution": 'x',
         # 'h', '*', 'X', '+', 'v'
     }
     colors = {
@@ -156,7 +144,8 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "our_solution": cm.get_cmap('tab10')(1),
         "random_search": cm.get_cmap('tab10')(2),
         "grid_search": cm.get_cmap('tab10')(3),
-        "vd_tuner": cm.get_cmap('tab10')(4)
+        "vd_tuner": cm.get_cmap('tab10')(4),
+        "test_solution": cm.get_cmap('tab10')(5),
     }
 
     marker_idx = 0
@@ -349,13 +338,13 @@ def plot_efS_3d(results, solution, filename, recall_min=None, qps_min=None, tuni
         filtered_results = [
             hp
             for hp, perf  in results
-            if perf[0] <= tuning_budget
+            if perf[1] >= recall_min and hp[0] % 2 == 0 and hp[1] % 16 == 0
         ]
     if qps_min:
         filtered_results = [
             hp
             for hp, perf in results
-            if perf[0] <= tuning_budget
+            if perf[2] >= qps_min and hp[0] % 2 == 0 and hp[1] % 16 == 0
         ]
     for M, efC, efS in filtered_results:
         M_vals.append(M)

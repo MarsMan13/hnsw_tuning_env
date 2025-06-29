@@ -16,6 +16,7 @@ from src.solutions.brute_force.run import run as brute_force
 from src.solutions.random_search.run import run as random_search
 from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
+from src.solutions.our_solution.run_new import run as test_solution
 from src.solutions.grid_search.run import run as grid_search
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
@@ -33,11 +34,12 @@ if __name__ == "__main__":
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        (brute_force, "brute_force"),
-        (grid_search, "grid_search"),
-        (random_search, "random_search"),
-        (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
+        # (brute_force, "brute_force"),
+        # (grid_search, "grid_search"),
+        # (random_search, "random_search"),
+        # (vd_tuner, "vd_tuner"),
+        # (our_solution, "our_solution"),
+        (test_solution, "test_solution"),
     ]
     RECALL_MINS = [
         0.90,
@@ -47,14 +49,14 @@ if __name__ == "__main__":
         0.99,
     ]
     SAMPLING_COUNT = [
-        1,
-        3,
-        5,
+        # 1,
+        # 3,
+        # 5,
         10,
     ]
 
-    # Case 1: when recall_min is active
     tasks = []
+    # Case 1: when recall_min is active
     for impl, dataset, (solution_func, solution_name), sampling_count, recall_min in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT, RECALL_MINS
     ):
@@ -65,4 +67,4 @@ if __name__ == "__main__":
     ):
         for qps_min in get_qps_metrics_dataset(impl, dataset):
             tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
-    run_experiments(tasks=tasks)
+    run_experiments(tasks=tasks, num_cores=64)

@@ -19,7 +19,7 @@
         "type": "integer",
         "default": 256,
         "min": 8,
-        "max": 512
+        "max": 1024
     },
     "ef": {
         "class": "searching",
