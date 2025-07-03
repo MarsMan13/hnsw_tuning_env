@@ -1,5 +1,5 @@
-
-#* Heuristic 1: shrinking search range of efS for efC
+# hyperparameter_tuner.py
+#* Heuristic 1: shrinking search range of efS for efC <=> No efS_getter
 
 import math
 import random
@@ -7,18 +7,13 @@ from typing import List, Tuple, Dict, Any
 
 from src.constants import DATASET, IMPL, EFS_MIN, EFS_MAX, SEED, TUNING_BUDGET, RECALL_MIN, EFC_MIN, EFC_MAX, M_MIN, M_MAX
 from src.solutions import postprocess_results, print_optimal_hyperparameters
-from src.solutions.our_solution.utils import EfCGetter, EfSGetter
+from src.solutions.our_solution.utils import EfCGetter, EfSGetterV2
+from src.solutions.our_solution.stats import Stats
 from data.ground_truths.ground_truth import GroundTruth
 
 # --- Constants for the tuning algorithm ---
-# Description for TERNARY_SEARCH_BASE:
-# Base for the logarithm to determine efC iteration limit. A larger value leads to fewer iterations.
-TERNARY_SEARCH_BASE = 2.5 
-# Description for TERNARY_SEARCH_FACTOR:
-# Factor to divide the iteration limit, further controlling the search granularity.
-TERNARY_SEARCH_FACTOR = 3 
-# Description for QPS_PERF_PENALTY:
-# Penalty applied to performance when maximizing recall, to break ties.
+TERNARY_SEARCH_BASE = 2.5
+TERNARY_SEARCH_FACTOR = 3
 QPS_PERF_PENALTY = 0.95
 
 class HyperparameterTuner:
@@ -36,10 +31,11 @@ class HyperparameterTuner:
         
         # --- State variables ---
         self.results: List[Tuple[Tuple, Tuple]] = []
+        self.stats: Stats = Stats(tuning_budget=tuning_budget, recall_min=recall_min, qps_min=qps_min)
         self.m_to_perf: List[Tuple[int, float]] = []
-        self.searched_hp: set = set()   #* set of (M, efC, efS) tuples
+        self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
         self.efC_getter = EfCGetter()
-        self.M_to_efC = {} #* {M : [seached efCs]}
+        self.searched_efC_efS: set = set()  #* set of (M, efC) tuples
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
         """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
@@ -50,14 +46,14 @@ class HyperparameterTuner:
         """Executes the full tuning process, including exploration and exploitation phases."""
         print("--- Starting Exploration Phase ---")
         self._exploration_phase()
-        
+        self.stats.exploration_phase(self.results)
         remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
         if remaining_budget > 0:
             print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
             self._exploitation_phase()
-            
-        print("\n--- Tuning is Done! ---")
+        self.stats.exploitation_phase(self.results)
         print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
+        print("\n--- Tuning is Done! ---")
         return self.results
 
     def _exploration_phase(self):
@@ -97,14 +93,11 @@ class HyperparameterTuner:
 
                 # Heuristic to shrink the search space for M
                 if perf_mid1 == perf_mid2:
-                    # If performances are equal, shrink the space based on the optimization goal.
-                    # This heuristic assumes QPS-maximization favors larger M, and Recall-maximization favors smaller M.
                     if self.recall_min is not None:
                         m_left = m_mid1
                     else:
                         m_right = m_mid2
                 else:
-                    # Apply a penalty when maximizing for recall to prefer higher QPS in case of similar recalls
                     penalized_perf1 = perf_mid1 * QPS_PERF_PENALTY if self.recall_min is not None else perf_mid1
                     if penalized_perf1 <= perf_mid2:
                         m_left = m_mid1
@@ -148,10 +141,12 @@ class HyperparameterTuner:
         Finds the best efC for a given M by performing a search over the efC space.
         """
         efc_left, efc_right = self.efC_getter.get(m)
-        if m not in self.M_to_efC:
-            self.M_to_efC[m] = []
-        searched_efCs = self.M_to_efC[m]
-        efc_iter_limit = (math.ceil(math.log(EFC_MAX - EFC_MIN, TERNARY_SEARCH_BASE)) // TERNARY_SEARCH_FACTOR 
+        
+        # if m not in self.efS_getters:
+        #     self.efS_getters[m] = EfSGetter()
+        # efs_getter = self.efS_getters[m]
+        
+        efc_iter_limit = (math.ceil(math.log(max(EFC_MAX - EFC_MIN, 1), TERNARY_SEARCH_BASE)) // TERNARY_SEARCH_FACTOR 
                           if not is_exploitation else EFC_MAX)
         
         max_perf_of_m = 0.0
@@ -165,21 +160,20 @@ class HyperparameterTuner:
             efc_count += 1
             efc_mid1 = efc_left + (efc_right - efc_left) // 3
             efc_mid2 = efc_right - (efc_right - efc_left) // 3
-            
-            # Evaluate performance for the two middle points
-            perf_mid1 = self._evaluate_hp(m, efc_mid1, searched_efCs)
-            perf_mid2 = self._evaluate_hp(m, efc_mid2, searched_efCs)
+            perf_mid1 = self._evaluate_hp(m, efc_mid1)
+            perf_mid2 = self._evaluate_hp(m, efc_mid2)
             
             # Update search range based on performance
-            if perf_mid1 <= perf_mid2:
+            if perf_mid1 == perf_mid2 and self.qps_min is not None:
+                efc_right = efc_mid2
+                efc_count -= 1
+            elif perf_mid1 <= perf_mid2:
                 efc_left = efc_mid1
             else:
                 efc_right = efc_mid2
             
-            # This is a critical heuristic. Updating the global efC range here can
-            # aggressively prune the search space, but it might also prematurely
-            # narrow it based on incomplete information.
-            self.efC_getter.put(m, efc_left, efc_right)
+            if perf_mid1 != perf_mid2: 
+                self.efC_getter.put(m, efc_left, efc_right)
             
             max_perf_of_m = max(max_perf_of_m, perf_mid1, perf_mid2)
             print(f"\t[efC Search for M={m}] Range [{efc_left}, {efc_right}]: efC1({efc_mid1}) -> {perf_mid1:.4f}, efC2({efc_mid2}) -> {perf_mid2:.4f}")
@@ -188,17 +182,18 @@ class HyperparameterTuner:
         for efc in range(efc_left, efc_right + 1):
             if efc_count >= efc_iter_limit or self.ground_truth.tuning_time > self.tuning_budget:
                 break
-            if efc in searched_efCs:
+            
+            if (m, efc) in self.searched_efC_efS:
                 continue
                 
             efc_count += 1
-            perf = self._evaluate_hp(m, efc, searched_efCs)
+            perf = self._evaluate_hp(m, efc)
             max_perf_of_m = max(max_perf_of_m, perf)
 
         print(f"\t=> Max performance for M={m}: {max_perf_of_m:.4f}")
         return max_perf_of_m
 
-    def _evaluate_hp(self, m: int, efc: int, searched_efCs: list) -> float:
+    def _evaluate_hp(self, m: int, efc: int) -> float:
         """
         Evaluates a single hyperparameter configuration (M, efC, efS), stores the result,
         and returns its performance.
@@ -208,7 +203,7 @@ class HyperparameterTuner:
 
         efs_min, efs_max = EFS_MIN, EFS_MAX
         efs = self.ground_truth.get_efS(m, efc, self.recall_min, self.qps_min, efS_min=efs_min, efS_max=efs_max)
-        searched_efCs.append(efc) 
+        self.searched_efC_efS.add((m, efc)) 
         hp = (m, efc, efs)
         if hp in self.searched_hp:
             # Find existing result if already searched
@@ -224,18 +219,17 @@ class HyperparameterTuner:
         
         return self._get_perf(perf_tuple)
 
-
-def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED)):
+def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED), stats=False):
     random.seed(SEED)
     ground_truth = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
-    
     tuner = HyperparameterTuner(ground_truth, recall_min, qps_min, tuning_budget)
     results = tuner.run_tuning()
-    
+    if stats:
+        return results, tuner.stats
     return results
 
 def run_recall_min_experiments():    
-    for RECALL_MIN in [0.90]:
+    for RECALL_MIN in [0.95]:
     # for RECALL_MIN in [0.90, 0.95, 0.975]:
         for IMPL in ["faiss"]:
         # for IMPL in ["milvus"]:
@@ -246,9 +240,9 @@ def run_recall_min_experiments():
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
                 results = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET)
                 # print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-                # postprocess_results(
-                #     results, solution="our_solution", impl=IMPL, dataset=DATASET, 
-                #     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET)
+                postprocess_results(
+                    results, solution="test_solution2", impl=IMPL, dataset=DATASET, 
+                    recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 def run_qps_min_experiments():
     for QPS_MIN in [18268]:
@@ -257,9 +251,9 @@ def run_qps_min_experiments():
             # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
                 results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
-                # postprocess_results(
-                #     results, solution="our_solution", impl=IMPL, dataset=DATASET, 
-                #     qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
+                postprocess_results(
+                    results, solution="test_solution2", impl=IMPL, dataset=DATASET, recall_min=None, 
+                    qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 # The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
 if __name__ == "__main__":

@@ -19,8 +19,10 @@ def get_qps_metrics_dataset(impl, dataset, ret_dict=False):
         "q50": q50,
         "q60": q60,
         "q70": q70,
+        "q75": q75,
         "q80": q80,
         "q90": q90,
+        "q95": q95,
     }
 
 if __name__ == "__main__":

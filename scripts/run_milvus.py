@@ -29,14 +29,15 @@ if __name__ == "__main__":
         "sift-128-euclidean",
     ]
     SOLUTIONS = [
-        (brute_force, "brute_force"),
-        (grid_search, "grid_search"),
-        (random_search, "random_search"),
-        (vd_tuner, "vd_tuner"),
+        # (brute_force, "brute_force"),
+        # (grid_search, "grid_search"),
+        # (random_search, "random_search"),
+        # (vd_tuner, "vd_tuner"),
         (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
         0.90,
+        0.925,
         0.95,
         0.975,
         0.99,
@@ -57,4 +58,4 @@ if __name__ == "__main__":
     ):
         for qps_min in get_qps_metrics_dataset(impl, dataset):
             tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
-    run_experiments(tasks=tasks)
+    run_experiments(tasks=tasks, num_cores=64)

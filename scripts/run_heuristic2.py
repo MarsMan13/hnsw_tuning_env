@@ -13,14 +13,14 @@ from scripts import IMPLS, DATASETS, SOLUTIONS, RECALL_MINS, TUNING_BUDGET, SEED
 
 from src.solutions.our_solution.stats import Stats
 from src.solutions.our_solution.run import run as run 
-from src.solutions.our_solution.run_heuristic1 import run as run_heuristic1
+from src.solutions.our_solution.run_heuristic2 import run as run_heuristic2
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 from src.solutions import postprocess_results
 from src.utils import is_already_saved
     
 SOLUTIONS = [
-    (run, "our_solution"),
-    (run_heuristic1, "test_solution2"),
+    (run, "test_solution"),
+    (run_heuristic2, "test_solution2"),
 ]
 
 def worker_function(params):
@@ -33,13 +33,13 @@ def worker_function(params):
     )
     stats_dict = stats1.stats
     # run_heuristic1.py
-    _, stats2 = run_heuristic1(
+    _, stats2 = run_heuristic2(
         impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min,
         sampling_count=sampling_count, stats=True
     )
     stats_dict2 = stats2.stats
     # postprocess results
-    Stats.compare_stats(stats_dict, stats_dict2, heuristic_type="heuristic1", impl=impl, dataset=dataset, 
+    Stats.compare_stats(stats_dict, stats_dict2, heuristic_type="heuristic2", impl=impl, dataset=dataset, 
                         recall_min=recall_min, qps_min=qps_min)
 
 if __name__ == "__main__":

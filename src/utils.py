@@ -118,12 +118,25 @@ def save_optimal_hyperparameters(impl, dataset, optimal_combi, recall_min=None, 
     with open(save_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["solution", "M", "efC", "efS", "T_record", "recall", "qps", "total_time", "build_time", "index_size"])
-        for item in optimal_combi.items():
-            print(item)
         for solution, (hp, perf) in optimal_combi.items():
             M, efC, efS = hp
             T_record, recall, qps, total_time, build_time, index_size = perf
             writer.writerow([solution, M, efC, efS, T_record, recall, qps, total_time, build_time, index_size])
+
+def optimal_hyperparameters_for_times(results, recall_min=None, qps_min=None):
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+    get_perf = lambda perf : perf[2] if recall_min else perf[1]
+    times = [t for t in range(3 * 3600, TUNING_BUDGET + 1, 3 * 3600)]
+    optimal_hyperparameters = [] 
+    for t in times:
+        filtered_results = [0.0, 0.0]
+        filtered_results += [
+            get_perf(perf) for hp, perf in results
+            if perf[0] <= t and (perf[1] >= recall_min if recall_min else perf[2] >= qps_min)
+        ]
+        sorted_results = sorted(filtered_results, reverse=True)
+        optimal_hyperparameters.append(sorted_results[0] if sorted_results else 0.0)
+    return optimal_hyperparameters
 
 def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
@@ -135,8 +148,15 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "our_solution": 's', 
         "random_search": '^', 
         "grid_search": 'D', 
+        "random_search_heuristic": '^', 
+        "grid_search_heuristic": 'D', 
         "vd_tuner": 'p',
         "test_solution": 'x',
+        "test_solution2": "*",
+        "10_tests": 's',
+        "5_tests": '^',
+        "3_tests": 'D',
+        "1_tests": 'p',
         # 'h', '*', 'X', '+', 'v'
     }
     colors = {
@@ -144,8 +164,15 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "our_solution": cm.get_cmap('tab10')(1),
         "random_search": cm.get_cmap('tab10')(2),
         "grid_search": cm.get_cmap('tab10')(3),
+        "random_search_heuristic": cm.get_cmap('tab10')(2),
+        "grid_search_heuristic": cm.get_cmap('tab10')(3),
         "vd_tuner": cm.get_cmap('tab10')(4),
         "test_solution": cm.get_cmap('tab10')(5),
+        "test_solution2": cm.get_cmap('tab10')(6),
+        "10_tests": cm.get_cmap('tab10')(1),
+        "5_tests": cm.get_cmap('tab10')(2),
+        "3_tests": cm.get_cmap('tab10')(3),
+        "1_tests": cm.get_cmap('tab10')(4),
     }
 
     marker_idx = 0

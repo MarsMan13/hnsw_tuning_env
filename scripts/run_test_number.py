@@ -16,30 +16,23 @@ from src.solutions.brute_force.run import run as brute_force
 from src.solutions.random_search.run import run as random_search
 from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
-# from src.solutions.our_solution.run_old import run as test_solution
 from src.solutions.grid_search.run import run as grid_search
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 if __name__ == "__main__":
     IMPLS = [
-        "hnswlib",
-        "faiss",
+        "milvus"
     ]
     DATASETS = [
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
-        "youtube-1024-angular",
-        # "msmarco-384-angular",
-        # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        # (brute_force, "brute_force"),
-        # (grid_search, "grid_search"),
-        # (random_search, "random_search"),
-        # (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
-        # (test_solution, "test_solution"),
+        (our_solution, "10 samples"),
+        (our_solution, "5 samples"),
+        (our_solution, "3 samples"),
+        (our_solution, "10 samples"),
     ]
     RECALL_MINS = [
         0.90,
@@ -49,14 +42,11 @@ if __name__ == "__main__":
         0.99,
     ]
     SAMPLING_COUNT = [
-        1,
-        3,
-        5,
         10,
     ]
 
-    tasks = []
     # Case 1: when recall_min is active
+    tasks = []
     for impl, dataset, (solution_func, solution_name), sampling_count, recall_min in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT, RECALL_MINS
     ):

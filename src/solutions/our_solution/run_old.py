@@ -1,6 +1,3 @@
-
-#* Heuristic 3: Ternary Search for effectively searching hyperparameter M
-
 import math
 import random
 from typing import List, Tuple, Dict, Any

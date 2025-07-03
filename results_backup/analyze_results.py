@@ -15,7 +15,6 @@ import multiprocessing
 
 from src.utils import load_search_results, plot_searched_points_3d, plot_multi_accumulated_timestamp, plot_efS_3d
 from src.solutions import print_optimal_hyperparameters
-from src.constants import TUNING_TIME
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 def parse_args():
@@ -23,7 +22,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Analyze results of hyperparameter tuning in parallel.")
     parser.add_argument("-o", "--optima", action="store_true", default=False, help="Print optimal hyperparameters.")
     parser.add_argument("-g", "--graph", action="store_true", default=False, help="Generate 3D plots.")
-    parser.add_argument("-t", "--time", action="int", default=TUNING_TIME, help="Tuning time in hours for the search results.")
     parser.add_argument("--surface", action="store_true", default=False, help="Use surface plot instead of scatter for 3D graphs.")
     parser.add_argument("--accumulated", action="store_true", default=False, help="Generate accumulated timestamp plots.")
     parser.add_argument("--efs", action="store_true", default=False, help="Generate accumulated timestamp plots.")
@@ -49,8 +47,6 @@ def worker(params):
 
         print(f"[Worker {os.getpid()}] Processing: {solution}, {impl}, {dataset}, {metric_str}")
         results = load_search_results(solution, filename)
-        if solution != "brute_force":
-            results = [result for result in results if result[1][0] <= args.time * 3600]  # Filter by tuning time
         if not results:
             print(f"Warning: No results found for {filename}. Skipping.")
             return f"No results for {filename}"
@@ -61,6 +57,7 @@ def worker(params):
         # Print optimal hyperparameters if requested
         if args.optima:
             print_optimal_hyperparameters(results, recall_min=recall_min, qps_min=qps_min)
+
         # Generate 3D graph if requested
         if args.graph:
             plot_searched_points_3d(
@@ -104,15 +101,15 @@ def main():
         # "vd_tuner",
     ]
     IMPLS = [
-        # "faiss", 
-        # "hnswlib",
-        "milvus"
+        "faiss", 
+        "hnswlib",
+        # "milvus"
     ]
     DATASETS = [
         "glove-100-angular",
-        # "nytimes-256-angular",
-        # "sift-128-euclidean",
-        # "youtube-1024-angular"
+        "nytimes-256-angular",
+        "sift-128-euclidean",
+        "youtube-1024-angular"
     ]
     RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
 
