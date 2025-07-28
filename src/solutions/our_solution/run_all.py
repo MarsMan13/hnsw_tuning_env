@@ -6,8 +6,7 @@ from typing import List, Tuple, Dict, Any
 
 from src.constants import DATASET, IMPL, EFS_MIN, EFS_MAX, SEED, TUNING_BUDGET, RECALL_MIN, EFC_MIN, EFC_MAX, M_MIN, M_MAX
 from src.solutions import postprocess_results, print_optimal_hyperparameters
-from src.solutions.our_solution.utils import EfSGetterV3, EfSGetterV2
-from src.solutions.our_solution.utils import EfCGetter, EfCGetterBase
+from src.solutions.our_solution.utils import EfCGetter, EfSGetterV3
 from src.solutions.our_solution.stats import Stats
 from data.ground_truths.ground_truth import GroundTruth
 
@@ -34,8 +33,7 @@ class HyperparameterTuner:
         self.stats: Stats = Stats(tuning_budget=tuning_budget, recall_min=recall_min, qps_min=qps_min)
         self.m_to_perf: List[Tuple[int, float]] = []
         self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
-        self.efS_getter = EfSGetterV3(mode="base")
-        # self.efC_getter = EfCGetter()
+        self.efS_getter = EfSGetterV3()
         self.efC_getter = EfCGetter()
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
@@ -51,6 +49,7 @@ class HyperparameterTuner:
         remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
         if remaining_budget > 0:
             print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
+            self.results.append(((0, 0, 0), (self.ground_truth.tuning_time, 0.0, 0.0, 0.0, 0.0, 0)))  # Add dummy result for stats
             # self._exploitation_phase()
         self.stats.exploitation_phase(self.results)
         # print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
@@ -203,7 +202,7 @@ class HyperparameterTuner:
 
         efs_min, efs_max = self.efS_getter.get(m, efc)
         efs = self.ground_truth.get_efS(m, efc, self.recall_min, self.qps_min, efS_min=efs_min, efS_max=efs_max)
-        
+        print(f"{efs_min} <= {efs} <= {efs_max}") 
         self.efS_getter.put(m, efc, efs)
         
         hp = (m, efc, efs)
@@ -231,16 +230,18 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     return results
 
 def run_recall_min_experiments():    
-    for RECALL_MIN in [0.99]:
+    for RECALL_MIN in [0.95]:
     # for RECALL_MIN in [0.90, 0.925, 0.95, 0.975, 0.99]:
         for IMPL in ["faiss", "hnswlib"]:
-        # for IMPL in ["milvus"]:
+        # for IMPL in ["hnswlib"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
             for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
-            # for DATASET in ["glove-100-angular"]:
+            # for DATASET in ["nytimes-256-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
                 results, stat, efS_stat = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET, stats=True)
+                for result in results:
+                    print(f"{result[1][0],result[1][1]}")
                 opt, _ = print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
                 print(opt)
                 postprocess_results(
@@ -250,10 +251,14 @@ def run_recall_min_experiments():
 def run_qps_min_experiments():
     for QPS_MIN in [29225]:
         for IMPL in ["faiss"]:
-            for DATASET in ["nytimes-256-angular",]:
+            for DATASET in ["nytimes-256-angular"]:
             # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
                 results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
+                for result in results:
+                    if result[1][2] < QPS_MIN:
+                        continue
+                    print(f"{result[1][0],result[1][1].item()}")
                 opt, _ = print_optimal_hyperparameters(results, recall_min=None, qps_min=QPS_MIN)
                 print(opt)
                 postprocess_results(

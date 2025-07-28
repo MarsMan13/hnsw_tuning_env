@@ -1,81 +1,81 @@
 import itertools
 import multiprocessing
-from functools import partial
+import numpy as np
+from scipy.stats import spearmanr
+import traceback
 
 from src.constants import TUNING_BUDGET
-from src.utils import filename_builder, get_optimal_hyperparameter, load_search_results, \
-    plot_multi_accumulated_timestamp, plot_searched_points_3d, plot_timestamp, save_optimal_hyperparameters
+from src.utils import (
+    filename_builder, get_optimal_hyperparameter, load_search_results,
+    plot_multi_accumulated_timestamp, save_optimal_hyperparameters,
+    optimal_hyperparameters_for_times
+)
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
-# def process_file():
-#     SOLUTION = "vd_tuner"
-#     FILENAME = "vd_tuner_hnswlib_nytimes-256-angular_8h_False_3.csv"
-#     TUNING_BUDGET = 3600 * 8
-#     RECALL_MIN = 0.95
-#     results = load_search_results(SOLUTION, FILENAME)
-#     _FILENAME = FILENAME.split(".csv")[0]
-#     plot_timestamp(results, SOLUTION, f"{_FILENAME}_timestamp_plot.png", recall_min=RECALL_MIN)
-#     plot_searched_points_3d(results, SOLUTION, f"{_FILENAME}_searched_points_3d.png", recall_min=RECALL_MIN)
-
 MOCK_SEED = 0
-def _process_single_metric(
-    impl: str,
-    dataset: str,
-    solutions: list,
-    recall_min: float = None,
-    qps_min: int = None,
-    sampling_count: int = None
-):
+
+def load_results_for_solutions(solutions, impl, dataset, recall_min, qps_min, sampling_count, tuning_time):
     """
-    Helper function to process results for a single metric (either recall_min or qps_min).
-    It loads data, plots timestamp, and saves optimal hyperparameters.
+    Loads search results for each solution and filters them by tuning time.
     """
-    # Announce which process is handling which task
+    results_combi = {}
+    for solution in solutions:
+        filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
+        results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+        if solution == "brute_force":
+            optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
+            hp = optimal_hp[0]
+            perf = (0.0, *optimal_hp[1][1:])  # dummy time=0.0 + performance tuple
+            results = [(hp, perf)]
+        else:
+            results = [result for result in results if result[1][0] <= tuning_time]
+        results_combi[solution] = results
+    return results_combi
+
+def calculate_spearman_for_results(results_combi, recall_min, qps_min):
+    """
+    Computes Spearman correlation between tuning time and performance metric for each solution.
+    """
+    spearman_combi = {}
+    for solution, results in results_combi.items():
+        if recall_min:
+            filtered = [(r[1][0], r[1][2]) for r in results if r[1][2] >= recall_min]
+        else:
+            filtered = [(r[1][0], r[1][1]) for r in results if r[1][1] >= qps_min]
+        x, y = zip(*filtered) if filtered else ([], [])
+        if len(x) > 1:
+            rho, _ = spearmanr(x, y)
+            spearman_combi[solution] = rho
+        else:
+            spearman_combi[solution] = None
+    return spearman_combi
+
+def process_single_metric(impl, dataset, solutions, recall_min=None, qps_min=None, sampling_count=None, tuning_time=TUNING_BUDGET):
+    """
+    Processes one metric: loads results, plots graphs, computes Spearman, and saves optimal hyperparameters.
+    """
     metric_type = "recall" if recall_min is not None else "qps"
     metric_value = recall_min if recall_min is not None else qps_min
     print(f"[Process {multiprocessing.current_process().pid}] Processing: {impl}, {dataset}, {metric_type}={metric_value}, sampling={sampling_count}")
 
-    results_combi = {}
-    optimal_combi = {}
+    results_combi = load_results_for_solutions(solutions, impl, dataset, recall_min, qps_min, sampling_count, tuning_time)
 
-    #* 1. Load results for all solutions under the given condition
-    for solution in solutions:
-        filename = filename_builder(
-            solution, impl, dataset, recall_min, qps_min
-        )
-        results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
-        if solution == "brute_force":
-            optimal_hp = get_optimal_hyperparameter(
-                results, recall_min=recall_min, qps_min=qps_min
-            )
-            hp = optimal_hp[0]
-            _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
-            perf = (0.0, recall, qps, total_time, build_time, index_size)
-            optimal_hp = (hp, perf)
-            results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
-        results_combi[solution] = results
-
-    #* 2. Determine metric type and value for file naming and plotting
-    metric_type = "recall" if recall_min is not None else "qps"
-    metric_value = recall_min if recall_min is not None else qps_min
-
-    #* 3. Plotting accumulated_timestamp
     plot_multi_accumulated_timestamp(
         results=results_combi,
         dirname="all",
         filename=f"{impl}_{dataset}_{metric_type}_{metric_value}_accumulated.png",
         recall_min=recall_min,
         qps_min=qps_min,
-        tuning_budget=TUNING_BUDGET,
+        tuning_budget=tuning_time,
         seed=MOCK_SEED,
         sampling_count=sampling_count,
     )
 
-    #* 4. Save Optimal Hyperparameters of each solution
-    for solution, results in results_combi.items():
-        optimal_combi[solution] = get_optimal_hyperparameter(
-            results, recall_min=recall_min, qps_min=qps_min
-        )
+    optimal_combi = {
+        solution: get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
+        for solution, results in results_combi.items()
+    }
+
     save_optimal_hyperparameters(
         impl=impl,
         dataset=dataset,
@@ -85,104 +85,74 @@ def _process_single_metric(
         seed=MOCK_SEED,
         sampling_count=sampling_count,
     )
-    # ! 5) TODO for the combined logic can be placed here
 
+    times_hp_combi = {}
+    for solution, results in results_combi.items():
+        optimal_perf = optimal_combi["brute_force"]
+        best_perf_value = optimal_perf[1][2] if recall_min else optimal_perf[1][1]
+        times_hp_combi[solution] = []
+        if results and best_perf_value > 0:
+            times_perf = optimal_hyperparameters_for_times(results, recall_min=recall_min, qps_min=qps_min)
+            times_hp_combi[solution] = [perf/best_perf_value for perf in times_perf]
+        else:
+            times_hp_combi[solution] = [0.0] * 4
+
+    spearman_combi = calculate_spearman_for_results(results_combi, recall_min, qps_min)
+    return times_hp_combi, spearman_combi
 
 def main():
-    SOLUTIONS = [
-        "brute_force",
-        "our_solution",
-        "grid_search",
-        "random_search",
-        "vd_tuner",
-        # "grid_search_heuristic",
-        # "random_search_heuristic",
-    ]
-    IMPLS = [
-        # "faiss",
-        # "hnswlib",
-        "milvus",
-    ]
-    DATASETS = [
-        "nytimes-256-angular",
-        "glove-100-angular",
-        "sift-128-euclidean",
-        # "youtube-1024-angular",
-    ]
-    SAMPLING_COUNT = [
-        10,
-        # 1,
-        # 3,
-        # 5,
-    ]
-    RECALL_MINS = [0.90, 0.95, 0.975, 0.99]
+    SOLUTIONS = ["brute_force", "our_solution", "grid_search", "random_search", "vd_tuner"]
+    IMPLS = ["faiss", "hnswlib"]
+    DATASETS = ["nytimes-256-angular", "glove-100-angular", "sift-128-euclidean", "youtube-1024-angular"]
+    SAMPLING_COUNT = [10]
+    RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
 
-    # --- Start of multiprocessing modification ---
-
-    #* 1. Create a list to hold all the tasks to be executed.
-    # A task is a tuple of arguments for the _process_single_metric function.
     tasks = []
-
-    all_iters = itertools.product(IMPLS, DATASETS, SAMPLING_COUNT)
-
-    print("--- Preparing tasks for parallel execution ---")
-    for impl, dataset, sampling_count in all_iters:
-        # Prepare tasks for each recall_min value
+    for impl, dataset, sampling_count in itertools.product(IMPLS, DATASETS, SAMPLING_COUNT):
         for recall_min in RECALL_MINS:
-            # Add a tuple of arguments for the worker function
-            task_args = (impl, dataset, SOLUTIONS, recall_min, None, sampling_count)
-            tasks.append(task_args)
-            print(f"  - Queued task: {impl}, {dataset}, recall_min={recall_min}, sampling={sampling_count}")
-
-        # Prepare tasks for each qps_min value
+            tasks.append((impl, dataset, SOLUTIONS, recall_min, None, sampling_count))
         for qps_min in get_qps_metrics_dataset(impl, dataset):
-            # Add a tuple of arguments for the worker function
-            task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
-            tasks.append(task_args)
-            print(f"  - Queued task: {impl}, {dataset}, qps_min={qps_min}, sampling={sampling_count}")
+            tasks.append((impl, dataset, SOLUTIONS, None, qps_min, sampling_count))
 
-    print("\n--- All tasks prepared. Starting parallel processing. ---")
-
-    #* 2. Use a multiprocessing Pool to execute tasks in parallel.
-    # It's recommended to use a number of processes equal to the number of CPU cores.
     try:
-        # Use all available CPU cores, or specify a number.
-
-        num_processes = 12 if multiprocessing.cpu_count() <= 16 else multiprocessing.cpu_count() - 12
-        print(f"Creating a pool of {num_processes} worker processes for {len(tasks)} tasks.")
-
-        # 'with' statement ensures the pool is properly closed after use.
+        num_processes = min(len(tasks), multiprocessing.cpu_count())
+        print(f"Starting parallel processing with {num_processes} processes for {len(tasks)} tasks.")
         with multiprocessing.Pool(processes=num_processes) as pool:
-            # pool.starmap takes a function and an iterable of argument tuples.
-            # It unpacks each tuple and calls the function with those arguments.
-            # e.g., for a task (a, b, c), it calls _process_single_metric(a, b, c)
-            pool.starmap(_process_single_metric, tasks)
+            results = pool.starmap(process_single_metric, tasks)
+
+        solution_perf = {s: [0.0]*4 for s in SOLUTIONS}
+        solution_spearman = {s: [] for s in SOLUTIONS}
+        valid_tasks = len(tasks)
+
+        for times_combi, spearman_combi in results:
+            if times_combi["brute_force"] == [0.0]*4:
+                valid_tasks -= 1
+                continue
+            for solution, perf in times_combi.items():
+                solution_perf[solution] = [x + y for x, y in zip(solution_perf[solution], perf)]
+            for solution, rho in spearman_combi.items():
+                if rho is not None:
+                    solution_spearman[solution].append(rho)
+
+        for solution in solution_perf:
+            solution_perf[solution] = [x/valid_tasks for x in solution_perf[solution]]
+
+        print("\nAverage performance per solution:")
+        for solution, perf in solution_perf.items():
+            print(solution, ",".join(f"{x:.4f}" for x in perf))
+
+        print("\nAverage Spearman correlation per solution:")
+        for solution, rhos in solution_spearman.items():
+            if rhos:
+                print(f"{solution}: {np.mean(rhos):.4f}")
+            else:
+                print(f"{solution}: No valid results.")
 
     except Exception as e:
-        print(f"An error occurred during multiprocessing: {e}")
+        print(f"Error during multiprocessing: {e}")
+        traceback.print_exc()
 
-    #* 3. All tasks are completed.
-    print("\n--- Parallel processing finished. ---")
-
-def test():
-    for sampling_count in [10, 5, 3, 1]:
-        _process_single_metric(
-            impl="faiss",
-            dataset="nytimes-256-angular",
-            solutions=[
-                "brute_force",
-                "our_solution",
-                "grid_search",
-                "random_search",
-                "vd_tuner",
-            ],
-            recall_min=0.975,
-            qps_min=None,
-            sampling_count=sampling_count
-        )
+    print("\n--- All tasks finished successfully. ---")
 
 if __name__ == "__main__":
-    # This check is crucial for multiprocessing to work correctly,
-    # especially on Windows and macOS. It prevents child processes from
-    # re-importing and re-executing the main script's code.
     main()

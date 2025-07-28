@@ -26,19 +26,20 @@ if __name__ == "__main__":
         "faiss",
     ]
     DATASETS = [
-        "nytimes-256-angular",
-        "glove-100-angular",
-        "sift-128-euclidean",
-        "youtube-1024-angular",
+        # "nytimes-256-angular",
+        # "glove-100-angular",
+        # "sift-128-euclidean",
+        # "youtube-1024-angular",
+        "deep1M-256-angular",
         # "msmarco-384-angular",
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        # (brute_force, "brute_force"),
+        (brute_force, "brute_force"),
         # (grid_search, "grid_search"),
         # (random_search, "random_search"),
         # (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
+        # (our_solution, "our_solution"),
         # (test_solution, "test_solution"),
     ]
     RECALL_MINS = [
@@ -49,9 +50,9 @@ if __name__ == "__main__":
         0.99,
     ]
     SAMPLING_COUNT = [
-        1,
-        3,
-        5,
+        # 1,
+        # 3,
+        # 5,
         10,
     ]
 

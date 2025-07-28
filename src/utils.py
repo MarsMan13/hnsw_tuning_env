@@ -8,6 +8,22 @@ import numpy as np
 
 from src.constants import EFC_MAX, EFC_MIN, M_MAX, M_MIN, RECALL_MIN, SEED, TOLERANCE, TUNING_BUDGET, MAX_SAMPLING_COUNT
 
+import matplotlib.font_manager as fm
+# 1. Path to your .ttf font file.
+#    Make sure this path is correct.
+font_path = './results/figures/LinLibertine_R.ttf'
+
+# 2. Register font if it's not already registered.
+if font_path not in [f.fname for f in fm.fontManager.ttflist]:
+    fm.fontManager.addfont(font_path)
+
+# 3. Set the registered font as the default.
+font_name = fm.FontProperties(fname=font_path).get_name()
+plt.rcParams['font.family'] = font_name
+
+# 4. Ensure the minus sign is displayed correctly in plots.
+plt.rcParams['axes.unicode_minus'] = False
+
 def filename_builder(solution, impl, dataset, recall_min, qps_min, tuning_budget=None):
     if tuning_budget:
         return f"{solution}_{impl}_{dataset}_{recall_min}r_{qps_min}q_{tuning_budget}.csv"
@@ -138,6 +154,118 @@ def optimal_hyperparameters_for_times(results, recall_min=None, qps_min=None):
         optimal_hyperparameters.append(sorted_results[0] if sorted_results else 0.0)
     return optimal_hyperparameters
 
+def plot_accumulated_timestamp_on_ax(
+    ax,
+    results,
+    recall_min=None,
+    qps_min=None,
+    tuning_budget=TUNING_BUDGET,
+):
+    """
+    Plot accumulated timestamp data onto a given Axes.
+    Does NOT create Figure or save it.
+    """
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+
+    markers = {
+        "brute_force": 'o',
+        "our_solution": 's',
+        "random_search": '^',
+        "grid_search": 'D',
+        "random_search_heuristic": '^',
+        "grid_search_heuristic": 'D',
+        "vd_tuner": 'p',
+        "10_tests": 's',
+        "5_tests": '^',
+        "3_tests": 'D',
+        "1_tests": 'p',
+    }
+    colors = {
+        "brute_force": cm.get_cmap('tab10')(0),
+        "our_solution": cm.get_cmap('tab10')(1),
+        "grid_search": cm.get_cmap('tab10')(2),
+        "random_search": cm.get_cmap('tab10')(3),
+        "grid_search_heuristic": cm.get_cmap('tab10')(2),
+        "random_search_heuristic": cm.get_cmap('tab10')(3),
+        "vd_tuner": cm.get_cmap('tab10')(4),
+        "10_tests": cm.get_cmap('tab10')(1),
+        "5_tests": cm.get_cmap('tab10')(2),
+        "3_tests": cm.get_cmap('tab10')(3),
+        "1_tests": cm.get_cmap('tab10')(4),
+    }
+
+    for solution, result in results.items():
+        if recall_min:
+            filtered = [
+                (value[0], value[2])  # (T_record, qps)
+                for _, value in result
+                if value[1] >= recall_min
+            ]
+        elif qps_min:
+            filtered = [
+                (value[0], value[1])  # (T_record, recall)
+                for _, value in result
+                if value[2] >= qps_min
+            ]
+
+        if not filtered:
+            continue
+
+        filtered.insert(0, (0.0, 0.0))
+        filtered.sort(key=lambda x: x[0])
+        accumulated = [(0.0, 0.0)]
+        max_perf = 0.0
+        for t, perf in filtered:
+            if perf > max_perf:
+                accumulated.append((t, max_perf))
+                max_perf = perf
+                accumulated.append((t, perf))
+        accumulated.append((tuning_budget, max_perf))
+
+        timestamps, perf_values = zip(*accumulated)
+
+        if solution == "brute_force":
+            _label = "oracle_solution"
+        elif solution == "our_solution":
+            _label = "HHAT"
+        else:
+            _label = solution
+
+        ax.plot(
+            timestamps,
+            perf_values,
+            marker=markers[solution],
+            color=colors[solution],
+            label=_label,
+            linewidth=1.0,
+            markersize=3 if solution == "grid_search" else 4
+        )
+        # if solution == "grid_search":
+        #     ax.plot(
+        #         timestamps,
+        #         perf_values,
+        #         marker=markers[solution],
+        #         color=colors[solution],
+        #         label=_label,
+        #         linewidth=1.0,
+        #         markersize=4  # For grid_search only, make it smaller
+        #     )
+        # else:
+        #     ax.plot(
+        #         timestamps,
+        #         perf_values,
+        #         marker=markers[solution],
+        #         color=colors[solution],
+        #         label=_label,
+        #         linewidth=1.0,
+        #         markersize=8  # Default size for others
+        #     )
+
+    ax.set_xlabel("Time (seconds)", fontsize=14)
+    ax.set_ylabel("QPS" if recall_min else "Recall", fontsize=14)
+    ax.set_xlim(0, tuning_budget)
+    ax.grid(True)
+
 def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
 
@@ -162,10 +290,10 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     colors = {
         "brute_force": cm.get_cmap('tab10')(0),
         "our_solution": cm.get_cmap('tab10')(1),
-        "random_search": cm.get_cmap('tab10')(2),
-        "grid_search": cm.get_cmap('tab10')(3),
-        "random_search_heuristic": cm.get_cmap('tab10')(2),
-        "grid_search_heuristic": cm.get_cmap('tab10')(3),
+        "grid_search": cm.get_cmap('tab10')(2),
+        "random_search": cm.get_cmap('tab10')(3),
+        "grid_search_heuristic": cm.get_cmap('tab10')(2),
+        "random_search_heuristic": cm.get_cmap('tab10')(3),
         "vd_tuner": cm.get_cmap('tab10')(4),
         "test_solution": cm.get_cmap('tab10')(5),
         "test_solution2": cm.get_cmap('tab10')(6),
@@ -229,6 +357,93 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
     plt.savefig(save_path)
     plt.close()
 
+def plot_timestamp_2(results, solution, filename,
+                   recall_min=None, qps_min=None,
+                   tuning_budget=TUNING_BUDGET,
+                   seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
+
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+    save_path = _save_path("timestamp", solution, filename, seed, sampling_count)
+
+    # ----------------------------
+    # Filtering
+    # ----------------------------
+    if recall_min:
+        filtered_results = [
+            (value[0], value[2])  # (time, qps)
+            for _, value in results
+            if value[1] >= recall_min and value[0] <= tuning_budget
+        ]
+    if qps_min:
+        filtered_results = [
+            (value[0], value[1])  # (time, recall)
+            for _, value in results
+            if value[2] >= qps_min and value[0] <= tuning_budget
+        ]
+
+    if not filtered_results:
+        print(f"No results meet the constraints.")
+        return
+
+    # ----------------------------
+    # 마지막 점 추가 (보통 tuning_budget 위치)
+    # ----------------------------
+    filtered_results.append(
+        (tuning_budget, filtered_results[-1][1])
+    )
+
+    # ----------------------------
+    # Debug: 내용 출력
+    # ----------------------------
+    print(f"Filtered Results: {filtered_results}")
+
+    timestamps, y_values = zip(*filtered_results)
+    plt.figure(figsize=(10, 5))
+    # plt.plot(timestamps, y_values, marker='o', label=solution)
+    plt.plot(timestamps, y_values, marker='o')
+
+    # ----------------------------
+    # 수직선 추가
+    # ----------------------------
+    y_max = max(y_values)
+    y_min = min(y_values)
+    plt.ylim(y_min - 0.05 * (y_max - y_min), y_max + 0.05 * (y_max - y_min))
+    if len(filtered_results) >= 2:
+        x_vline = filtered_results[-2][0]
+        y_vline = filtered_results[-2][1]
+        plt.vlines(
+            x=x_vline,
+            ymin=0,  # x축과 연결하려면 0
+            ymax=y_vline,
+            colors='red',
+            linestyles='--',
+            label=f'Early Stop at {x_vline:.0f}s'
+        )
+    # ----------------------------
+    # Label, Grid, Save
+    # ----------------------------
+    plt.xlabel("Time (seconds)", fontsize=22)
+    plt.ylabel("QPS" if recall_min else "Recall", fontsize=24)
+    plt.xlim(0, tuning_budget)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+
+    # ✅ 그래프 영역 밖, 위쪽에 legend 배치
+    plt.legend(
+        loc="lower center",         # 범례 박스의 anchor point 위치
+        bbox_to_anchor=(0.425, 1.02), # (가로 중앙, 축 위 2% 위)
+        ncol=2,                     # 범례 항목을 가로로 배치하고 싶으면 ncol 조절
+        borderaxespad=0.0,
+        frameon=False,               # 박스 테두리 없애기 (선택)
+        fontsize=22,
+    )
+
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Saved plot at: {save_path}")
+
 def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count=MAX_SAMPLING_COUNT):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     save_path = _save_path("timestamp", solution, filename, seed, sampling_count)
@@ -248,7 +463,6 @@ def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, t
     if not filtered_results:
         print(f"No results with recall >= {recall_min}")
         return
-    filtered_results.append((tuning_budget, filtered_results[-1][1]))  # Add a point at the end of the tuning budget
     #! TODO : Debug it
     # filtered_results = filtered_results[:-1]
     # print(filtered_results)

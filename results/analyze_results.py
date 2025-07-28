@@ -15,7 +15,7 @@ import multiprocessing
 
 from src.utils import load_search_results, plot_searched_points_3d, plot_multi_accumulated_timestamp, plot_efS_3d
 from src.solutions import print_optimal_hyperparameters
-from src.constants import TUNING_TIME
+from src.constants import TUNING_BUDGET
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 def parse_args():
@@ -23,7 +23,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Analyze results of hyperparameter tuning in parallel.")
     parser.add_argument("-o", "--optima", action="store_true", default=False, help="Print optimal hyperparameters.")
     parser.add_argument("-g", "--graph", action="store_true", default=False, help="Generate 3D plots.")
-    parser.add_argument("-t", "--time", action="int", default=TUNING_TIME, help="Tuning time in hours for the search results.")
+    parser.add_argument("-t", "--time", type=int, default=TUNING_BUDGET, help="Tuning time in hours for the search results.")
     parser.add_argument("--surface", action="store_true", default=False, help="Use surface plot instead of scatter for 3D graphs.")
     parser.add_argument("--accumulated", action="store_true", default=False, help="Generate accumulated timestamp plots.")
     parser.add_argument("--efs", action="store_true", default=False, help="Generate accumulated timestamp plots.")
@@ -114,7 +114,7 @@ def main():
         # "sift-128-euclidean",
         # "youtube-1024-angular"
     ]
-    RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
+    RECALL_MINS = [0.95]
 
     # --- Prepare a list of all tasks to be executed ---
     tasks = []
@@ -126,10 +126,10 @@ def main():
         tasks.append((solution, impl, dataset, recall_min, None, args))
 
     # 2. Prepare tasks for qps_min constraint
-    qps_tasks_params = itertools.product(SOLUTIONS, IMPLS, DATASETS)
-    for solution, impl, dataset in qps_tasks_params:
-        for qps_min in get_qps_metrics_dataset(impl=impl, dataset=dataset):
-            tasks.append((solution, impl, dataset, None, qps_min, args))
+    # qps_tasks_params = itertools.product(SOLUTIONS, IMPLS, DATASETS)
+    # for solution, impl, dataset in qps_tasks_params:
+    #     for qps_min in get_qps_metrics_dataset(impl=impl, dataset=dataset):
+    #         tasks.append((solution, impl, dataset, None, qps_min, args))
 
     print(f"--- Starting parallel analysis for {len(tasks)} tasks using {args.cores} cores ---")
 

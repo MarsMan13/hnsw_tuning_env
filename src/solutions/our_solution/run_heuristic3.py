@@ -34,9 +34,9 @@ class HyperparameterTuner:
         self.stats: Stats = Stats(tuning_budget=tuning_budget, recall_min=recall_min, qps_min=qps_min)
         self.m_to_perf: List[Tuple[int, float]] = []
         self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
-        self.efS_getter = EfSGetterV3(mode="base")
         # self.efC_getter = EfCGetter()
-        self.efC_getter = EfCGetter()
+        self.efC_getter = EfCGetterBase()
+        self.efS_getter = EfSGetterV3(mode="base")
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
         """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
@@ -51,9 +51,9 @@ class HyperparameterTuner:
         remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
         if remaining_budget > 0:
             print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
-            # self._exploitation_phase()
+            self._exploitation_phase()
         self.stats.exploitation_phase(self.results)
-        # print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
+        print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
         print("\n--- Tuning is Done! ---")
         return self.results
 
@@ -248,9 +248,9 @@ def run_recall_min_experiments():
                     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 def run_qps_min_experiments():
-    for QPS_MIN in [29225]:
+    for QPS_MIN in [18268]:
         for IMPL in ["faiss"]:
-            for DATASET in ["nytimes-256-angular",]:
+            for DATASET in ["glove-100-angular"]:
             # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
                 results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
@@ -262,5 +262,5 @@ def run_qps_min_experiments():
 
 # The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
 if __name__ == "__main__":
-    # run_recall_min_experiments()
-    run_qps_min_experiments()
+    run_recall_min_experiments()
+    # run_qps_min_experiments()

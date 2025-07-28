@@ -6,7 +6,8 @@ from scipy.stats import spearmanr
 
 from src.constants import TUNING_BUDGET
 from src.utils import filename_builder, get_optimal_hyperparameter, load_search_results, \
-    plot_multi_accumulated_timestamp, save_optimal_hyperparameters, optimal_hyperparameters_for_times
+    plot_multi_accumulated_timestamp, save_optimal_hyperparameters, optimal_hyperparameters_for_times, \
+    plot_multi_accumulated_timestamp_for_main_figure
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 # def process_file():
@@ -66,6 +67,17 @@ def _process_single_metric(
 
     #* 3. Plotting accumulated_timestamp
     plot_multi_accumulated_timestamp(
+        results=results_combi,
+        dirname="all",
+        filename=f"{impl}_{dataset}_{metric_type}_{metric_value}_accumulated.png",
+        recall_min=recall_min,
+        qps_min=qps_min,
+        tuning_budget=tuning_time,
+        seed=MOCK_SEED,
+        sampling_count=sampling_count,
+    )
+    #* 3.5 Plotting accumulated_timestamp for main figure
+    plot_multi_accumulated_timestamp_for_main_figure(
         results=results_combi,
         dirname="all",
         filename=f"{impl}_{dataset}_{metric_type}_{metric_value}_accumulated.png",

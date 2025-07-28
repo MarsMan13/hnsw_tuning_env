@@ -1,13 +1,13 @@
 # hyperparameter_tuner.py
-
+#* Heuristic 2: Ternary Search for effectively searching hyperparameter efC at fixed M <=> No efC_getter
+#* Heuristic 3: Ternary Search for effectively searching hyperparameter M <=> No Thernary Search for M
 import math
 import random
 from typing import List, Tuple, Dict, Any
 
 from src.constants import DATASET, IMPL, EFS_MIN, EFS_MAX, SEED, TUNING_BUDGET, RECALL_MIN, EFC_MIN, EFC_MAX, M_MIN, M_MAX
 from src.solutions import postprocess_results, print_optimal_hyperparameters
-from src.solutions.our_solution.utils import EfSGetterV3, EfSGetterV2
-from src.solutions.our_solution.utils import EfCGetter, EfCGetterBase
+from src.solutions.our_solution.utils import EfCGetter, EfSGetterV2
 from src.solutions.our_solution.stats import Stats
 from data.ground_truths.ground_truth import GroundTruth
 
@@ -34,9 +34,8 @@ class HyperparameterTuner:
         self.stats: Stats = Stats(tuning_budget=tuning_budget, recall_min=recall_min, qps_min=qps_min)
         self.m_to_perf: List[Tuple[int, float]] = []
         self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
-        self.efS_getter = EfSGetterV3(mode="base")
-        # self.efC_getter = EfCGetter()
-        self.efC_getter = EfCGetter()
+        
+        self.efS_getter = EfSGetterV2()
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
         """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
@@ -51,9 +50,9 @@ class HyperparameterTuner:
         remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
         if remaining_budget > 0:
             print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
-            # self._exploitation_phase()
+            self._exploitation_phase()
         self.stats.exploitation_phase(self.results)
-        # print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
+        print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
         print("\n--- Tuning is Done! ---")
         return self.results
 
@@ -141,43 +140,30 @@ class HyperparameterTuner:
         """
         Finds the best efC for a given M by performing a search over the efC space.
         """
-        efc_left, efc_right = self.efC_getter.get(m)
+        efc_left, efc_right = EFC_MIN, EFC_MAX
         
         # if m not in self.efS_getters:
         #     self.efS_getters[m] = EfSGetter()
         # efs_getter = self.efS_getters[m]
         
         efc_iter_limit = (math.ceil(math.log(max(EFC_MAX - EFC_MIN, 1), TERNARY_SEARCH_BASE)) // TERNARY_SEARCH_FACTOR 
-                          if not is_exploitation else EFC_MAX)
+                          if not is_exploitation else EFC_MAX // 10)
         
         max_perf_of_m = 0.0
         efc_count = 0
         
         # Ternary search for efC
-        while (efc_right - efc_left) > 3 and efc_count < efc_iter_limit:
+        while efc_count < efc_iter_limit:
             if self.ground_truth.tuning_time > self.tuning_budget:
                 break
-            
             efc_count += 1
-            efc_mid1 = efc_left + (efc_right - efc_left) // 3
-            efc_mid2 = efc_right - (efc_right - efc_left) // 3
-            perf_mid1 = self._evaluate_hp(m, efc_mid1)
-            perf_mid2 = self._evaluate_hp(m, efc_mid2)
-            
-            # Update search range based on performance
-            if perf_mid1 == perf_mid2 and self.qps_min is not None:
-                efc_right = efc_mid2
-                efc_count -= 1
-            elif perf_mid1 <= perf_mid2:
-                efc_left = efc_mid1
-            else:
-                efc_right = efc_mid2
-            if perf_mid1 != perf_mid2: 
-                self.efC_getter.put(m, efc_left, efc_right)
-            
-            max_perf_of_m = max(max_perf_of_m, perf_mid1, perf_mid2)
-            print(f"\t[efC Search for M={m}] Range [{efc_left}, {efc_right}]: efC1({efc_mid1}) -> {perf_mid1:.4f}, efC2({efc_mid2}) -> {perf_mid2:.4f}")
 
+            efc = random.randint(efc_left, efc_right)
+            if (m, efc) in self.efS_getter:
+                continue
+            perf = self._evaluate_hp(m, efc)
+            
+            max_perf_of_m = max(max_perf_of_m, perf)
         # Exhaustive search in the final small range of efC
         for efc in range(efc_left, efc_right + 1):
             if efc_count >= efc_iter_limit or self.ground_truth.tuning_time > self.tuning_budget:
@@ -227,40 +213,38 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     tuner = HyperparameterTuner(ground_truth, recall_min, qps_min, tuning_budget)
     results = tuner.run_tuning()
     if stats:
-        return results, tuner.stats, tuner.efC_getter.stats()
+        return results, tuner.stats
     return results
 
 def run_recall_min_experiments():    
-    for RECALL_MIN in [0.99]:
-    # for RECALL_MIN in [0.90, 0.925, 0.95, 0.975, 0.99]:
-        for IMPL in ["faiss", "hnswlib"]:
+    for RECALL_MIN in [0.95]:
+    # for RECALL_MIN in [0.90, 0.95, 0.975]:
+        for IMPL in ["faiss"]:
         # for IMPL in ["milvus"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
-            # for DATASET in ["glove-100-angular"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular"]:
+            for DATASET in ["glove-100-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
-                results, stat, efS_stat = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET, stats=True)
-                opt, _ = print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-                print(opt)
+                results = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET)
+                opt, _ = print_optimal_hyperparameters(results, recall_min=RECALL_MIN, qps_min=None)
                 postprocess_results(
                     results, solution="test_solution", impl=IMPL, dataset=DATASET, 
                     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 def run_qps_min_experiments():
-    for QPS_MIN in [29225]:
+    for QPS_MIN in [18268]:
         for IMPL in ["faiss"]:
-            for DATASET in ["nytimes-256-angular",]:
+            for DATASET in ["glove-100-angular"]:
             # for DATASET in ["dbpediaentity-768-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
                 results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
                 opt, _ = print_optimal_hyperparameters(results, recall_min=None, qps_min=QPS_MIN)
-                print(opt)
                 postprocess_results(
                     results, solution="test_solution", impl=IMPL, dataset=DATASET, 
                     qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 # The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
 if __name__ == "__main__":
-    # run_recall_min_experiments()
+    run_recall_min_experiments()
     run_qps_min_experiments()

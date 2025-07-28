@@ -14,7 +14,9 @@ def get_qps_metrics_dataset(impl, dataset, ret_dict=False):
     q90 = int(np.quantile(QPSs, 0.90))
     q95 = int(np.quantile(QPSs, 0.95))
     if not ret_dict:
-        return q50, q60, q70, q75, q80, q90, q95
+        # return q50, q60, q70, q75, q80, q90, q95
+        # return q50, q75, q90, q95
+        return q50, q60, q75, q80, q90
     return {
         "q50": q50,
         "q60": q60,

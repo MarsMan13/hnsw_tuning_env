@@ -36,7 +36,7 @@ class HyperparameterTuner:
         self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
         self.efS_getter = EfSGetterV3(mode="base")
         # self.efC_getter = EfCGetter()
-        self.efC_getter = EfCGetter()
+        self.efC_getter = EfCGetterBase()
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
         """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
