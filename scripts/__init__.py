@@ -11,7 +11,7 @@ from src.solutions.our_solution.run import run as our_solution
 from src.solutions.grid_search.run import run as grid_search
 from src.utils import is_already_saved
 
-NUM_CORES = 16 if os.cpu_count() <= 20 else os.cpu_count() - 16
+NUM_CORES = max(os.cpu_count() - 2, 1)
 ## Configuration lists (these can remain global or passed as arguments to run_experiments)
 IMPLS = [
     "hnswlib",

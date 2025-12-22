@@ -17,6 +17,9 @@ from src.solutions.random_search.run import run as random_search
 from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
 from src.solutions.grid_search.run import run as grid_search
+from src.solutions.optuna.run import run as optuna
+from src.solutions.nsga.run import run as nsga
+
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 if __name__ == "__main__":
@@ -25,22 +28,26 @@ if __name__ == "__main__":
     ]
     DATASETS = [
         "nytimes-256-angular",
-        "glove-100-angular",
-        "sift-128-euclidean",
+        # "glove-100-angular",
+        # "sift-128-euclidean",
+        # "deep1M-256-angular",
+        # "youtube-1024-angular",
     ]
     SOLUTIONS = [
         # (brute_force, "brute_force"),
         # (grid_search, "grid_search"),
         # (random_search, "random_search"),
+        # (our_solution, "our_solution"),
         # (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
+        (nsga, "nsga"),
+        (optuna, "optuna"),
     ]
     RECALL_MINS = [
-        0.90,
-        0.925,
+        # 0.90,
+        # 0.925,
         0.95,
-        0.975,
-        0.99,
+        # 0.975,
+        # 0.99,
     ]
     SAMPLING_COUNT = [
         10,

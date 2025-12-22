@@ -1,13 +1,18 @@
 import matplotlib.pyplot as plt
 
-from src.constants import TUNING_BUDGET
-from src.utils import filename_builder, get_optimal_hyperparameter, \
-    load_search_results, plot_accumulated_timestamp_on_ax
+from src.constants import TUNING_BUDGET, SEED
+from src.utils import (
+    filename_builder,
+    get_optimal_hyperparameter,
+    load_search_results,
+    plot_accumulated_timestamp_on_ax,
+)
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 current_dir = "results/figures"
-
 MOCK_SEED = 0
+
+
 def get_results(
     impl: str,
     dataset: str,
@@ -17,25 +22,21 @@ def get_results(
     sampling_count: int = None,
     tuning_time: int = TUNING_BUDGET,
 ):
-
     results_combi = {}
-    #* 1. Load results for all solutions under the given condition
+
     for solution in solutions:
-        filename = filename_builder(
-            solution, impl, dataset, recall_min, qps_min
-        )
+        filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+
         if solution == "brute_force":
-            optimal_hp = get_optimal_hyperparameter(
-                results, recall_min=recall_min, qps_min=qps_min
-            )
+            optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
             hp = optimal_hp[0]
             _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
-            optimal_hp = (hp, perf)
-            results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
+            results = [(hp, perf)]
         else:
-            results = [result for result in results if result[1][0] <= tuning_time]  # Filter results by tuning time
+            results = [r for r in results if r[1][0] <= tuning_time]
+
         results_combi[solution] = results
 
     return {
@@ -43,119 +44,132 @@ def get_results(
         "dataset": dataset,
         "recall_min": recall_min,
         "qps_min": qps_min,
-        "results":results_combi
+        "results": results_combi,
     }
 
-# FILE: main.py
 
 def main():
     import matplotlib.font_manager as fm
-    # 1. Path to your .ttf font file.
-    #    Make sure this path is correct.
-    font_path = f'{current_dir}/LinLibertine_R.ttf'
 
-    # 2. Register font if it's not already registered.
+    # Register font
+    font_path = f"{current_dir}/LinLibertine_R.ttf"
     if font_path not in [f.fname for f in fm.fontManager.ttflist]:
         fm.fontManager.addfont(font_path)
-    
-    # 3. Set the registered font as the default.
+
     font_name = fm.FontProperties(fname=font_path).get_name()
-    plt.rcParams['font.family'] = font_name
+    plt.rcParams["font.family"] = font_name
+    plt.rcParams["axes.unicode_minus"] = False
 
-    # 4. Ensure the minus sign is displayed correctly in plots.
-    plt.rcParams['axes.unicode_minus'] = False
+    # --- Config ---
     SOLUTIONS = [
-        "brute_force", "our_solution", "grid_search",
-        "random_search", "vd_tuner",
+        "our_solution",
+        "brute_force",   # If your code uses a different key, change it here
+        "random_search",
+        "grid_search",
+        "vd_tuner",
+        "optuna",
+        "nsga",
+        # "brute_force",      # include only if you actually plot it
     ]
-    # NOTE: To match the requested labels (hnswlib top, faiss bottom),
-    #       we arrange the IMPLS list in that order.
-    IMPLS = [
-        "milvus"
+
+    # Legend order you want (labels must match what plot_accumulated_timestamp_on_ax puts in legend)
+    LEGEND_ORDER = [
+        "CHAT",
+        "Oracle Solution",
+        "Random Search",
+        "Grid Search",
+        "VDTuner",
+        "Optuna",
+        "NSGA-II",
     ]
-    DATASETS = [
-        "nytimes-256-angular", "glove-100-angular", "sift-128-euclidean",
-    ]
-    # NOTE: Labels for each column as requested by the user.
-    COLUMN_LABELS = [
-        "nytimes", "glove", "sift"
-    ]
-    SAMPLING_COUNT = [10]
-    RECALL_MINS = [0.95]
 
-    # --- Task generation logic (same as before) ---
-    tasks = []
-    for impl in IMPLS:
-        for metric in ["recall_min", "qps_min"]:
-            for dataset in DATASETS:
-                for sampling_count in SAMPLING_COUNT:
-                    if metric == "recall_min":
-                        for recall_min in RECALL_MINS:
-                            task_args = (impl, dataset, SOLUTIONS, recall_min, None, sampling_count)
-                            tasks.append(task_args)
-                    else:
-                        qps_min = get_qps_metrics_dataset(impl, dataset, ret_dict=True)["q75"]
-                        task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
-                        tasks.append(task_args)
-    results = []
-    for impl, dataset, solutions, recall_min, qps_min, sampling_count in tasks:
-        results.append(get_results(
-            impl=impl, dataset=dataset, solutions=solutions,
-            recall_min=recall_min, qps_min=qps_min, sampling_count=sampling_count
-        ))
-    
-    # --- Plotting logic with requested modifications ---
+    IMPL = "milvus"
+    DATASET = "nytimes-256-angular"
+    SAMPLING_COUNT = 10
 
-    # Create a 4x5 subplot grid
-    fig, axes = plt.subplots(2, 3, figsize=(16, 7))
+    RECALL_MIN = 0.95
+    QPS_MIN_KEY = "q75"  # choose "q50", "q75", "q90", ...
+    QPS_MIN = get_qps_metrics_dataset(IMPL, DATASET, ret_dict=True)[QPS_MIN_KEY]
 
-    # Plot data on each subplot
-    for ax, result in zip(axes.flat, results):
-        plot_accumulated_timestamp_on_ax(
-            ax, result["results"], result["recall_min"], result["qps_min"]
-        )
+    # Two panels only:
+    # (1) recall_min constraint => QPS vs time
+    # (2) qps_min constraint => Recall vs time
+    results_left = get_results(
+        impl=IMPL,
+        dataset=DATASET,
+        solutions=SOLUTIONS,
+        recall_min=RECALL_MIN,
+        qps_min=None,
+        sampling_count=SAMPLING_COUNT,
+        tuning_time=TUNING_BUDGET,
+    )
+    results_right = get_results(
+        impl=IMPL,
+        dataset=DATASET,
+        solutions=SOLUTIONS,
+        recall_min=None,
+        qps_min=QPS_MIN,
+        sampling_count=SAMPLING_COUNT,
+        tuning_time=TUNING_BUDGET,
+    )
 
-    # 1. Gather unique handles and labels for the main legend
+    # --- Plot ---
+    fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.2))
+
+    plot_accumulated_timestamp_on_ax(
+        axes[0],
+        results_left["results"],
+        results_left["recall_min"],
+        results_left["qps_min"],
+    )
+    plot_accumulated_timestamp_on_ax(
+        axes[1],
+        results_right["results"],
+        results_right["recall_min"],
+        results_right["qps_min"],
+    )
+
+    # Optional: panel titles (remove if you don't want them)
+    # axes[0].set_title(f"Recall ≥ {RECALL_MIN}", fontsize=16)
+    # axes[1].set_title(f"QPS ≥ {QPS_MIN} ({QPS_MIN_KEY})", fontsize=16)
+
+    # --- Legend (deduplicate + enforce order + avoid overflow) ---
     handles, labels = [], []
-    for ax in axes.flat:
+    for ax in axes:
         h, l = ax.get_legend_handles_labels()
         handles.extend(h)
         labels.extend(l)
+
+    # Deduplicate (keep last occurrence)
     by_label = dict(zip(labels, handles))
 
-    # 2. Create the main legend at the top
+    # Reorder by LEGEND_ORDER (keep only existing labels)
+    ordered_labels = [lab for lab in LEGEND_ORDER if lab in by_label]
+    ordered_handles = [by_label[lab] for lab in ordered_labels]
+
+    # Add any leftover labels not in LEGEND_ORDER (optional)
+    leftovers = [lab for lab in by_label.keys() if lab not in ordered_labels]
+    ordered_labels += leftovers
+    ordered_handles += [by_label[lab] for lab in leftovers]
+
     fig.legend(
-        by_label.values(), by_label.keys(),
-        loc='upper center',
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=5, fontsize=18, frameon=False
+        ordered_handles,
+        ordered_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.12),  # push legend above to prevent clipping
+        ncol=min(7, max(1, len(ordered_labels))),
+        fontsize=14,
+        frameon=False,
+        columnspacing=1.0,
+        handletextpad=0.6,
     )
 
-    # 3. Add vertical row labels on the left side of the figure
-    fig.text(0.02, 0.70, 'hnswlib', va='center', ha='center', rotation='vertical', fontsize=24)
-    fig.text(0.02, 0.30, 'faiss',   va='center', ha='center', rotation='vertical', fontsize=24)
+    # Layout: reserve top space for legend
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.92])
 
-    # 4. Add column labels at the bottom of the figure
-    for i, label in enumerate(COLUMN_LABELS):
-        axes[1, i].set_xlabel(label, fontsize=20, labelpad=10)
-
-    # 5. Adjust subplot layout to prevent overlap and make space for new labels
-    plt.subplots_adjust(
-        left=0.07,   # Make space for vertical labels
-        bottom=0.1,  # Make space for column labels
-        top=0.93,    # Make space for the top legend
-        wspace=0.3,
-        hspace=0.4   # Adjust vertical space between plots
-    )
-
-    fig.savefig("milvus_figure.pdf", bbox_inches="tight")
+    fig.savefig(f"milvus_nytimes_{SEED}.pdf", bbox_inches="tight")
     plt.show()
 
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
-    # This check is crucial for multiprocessing to work correctly,
-    # especially on Windows and macOS. It prevents child processes from
-    # re-importing and re-executing the main script's code.
     main()

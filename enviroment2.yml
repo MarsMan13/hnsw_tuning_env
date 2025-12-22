@@ -142,4 +142,3 @@ dependencies:
       - update==0.0.1
       - urllib3==2.4.0
       - wadler-lindig==0.1.5
-prefix: /home/islab/miniconda3/envs/tuning_env

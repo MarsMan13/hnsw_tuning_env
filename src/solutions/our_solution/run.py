@@ -61,17 +61,17 @@ class HyperparameterTuner:
         Broadly searches the 'M' parameter space using a ternary search-like approach
         to identify promising regions.
         """
-        m_left, m_right = M_MIN, M_MAX
+        m_bottom, m_top = M_MIN, M_MAX
         processed_m = set()
 
         try:
             # Ternary search for M
-            while (m_right - m_left) > 3:
+            while (m_top - m_bottom) > 3:
                 if self.ground_truth.tuning_time > self.tuning_budget:
                     raise TimeoutError("Tuning budget exceeded during M exploration.")
                 
-                m_mid1 = m_left + (m_right - m_left) // 3
-                m_mid2 = m_right - (m_right - m_left) // 3
+                m_mid1 = m_bottom + (m_top - m_bottom) // 3
+                m_mid2 = m_top - (m_top - m_bottom) // 3
 
                 # Process mid1 if not already done
                 if m_mid1 not in processed_m:
@@ -89,23 +89,23 @@ class HyperparameterTuner:
                 perf_mid1 = next((p for m, p in self.m_to_perf if m == m_mid1), 0.0)
                 perf_mid2 = next((p for m, p in self.m_to_perf if m == m_mid2), 0.0)
 
-                print(f"\n[M Exploration] Range [{m_left}, {m_right}]: M1({m_mid1}) -> {perf_mid1:.4f}, M2({m_mid2}) -> {perf_mid2:.4f}")
+                print(f"\n[M Exploration] Range [{m_bottom}, {m_top}]: M1({m_mid1}) -> {perf_mid1:.4f}, M2({m_mid2}) -> {perf_mid2:.4f}")
 
                 # Heuristic to shrink the search space for M
                 if perf_mid1 == perf_mid2:
                     if self.recall_min is not None:
-                        m_left = m_mid1
+                        m_bottom = m_mid1
                     else:
-                        m_right = m_mid2
+                        m_top = m_mid2
                 else:
                     penalized_perf1 = perf_mid1 * QPS_PERF_PENALTY if self.recall_min is not None else perf_mid1
                     if penalized_perf1 <= perf_mid2:
-                        m_left = m_mid1
+                        m_bottom = m_mid1
                     else:
-                        m_right = m_mid2
+                        m_top = m_mid2
             
             # Exhaustive search in the final small range of M
-            for m_val in range(m_left, m_right + 1):
+            for m_val in range(m_bottom, m_top + 1):
                 if m_val not in processed_m:
                     perf = self._find_best_efc_for_m(m_val)
                     self.m_to_perf.append((m_val, perf))
@@ -220,6 +220,8 @@ class HyperparameterTuner:
         
         return self._get_perf(perf_tuple)
 
+# =====================================================
+
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED), stats=False):
     random.seed(SEED)
     ground_truth = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
@@ -228,6 +230,8 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
     if stats:
         return results, tuner.stats, tuner.efC_getter.stats()
     return results
+
+# =====================================================
 
 def run_recall_min_experiments():    
     for RECALL_MIN in [0.95]:

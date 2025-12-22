@@ -172,6 +172,8 @@ def plot_accumulated_timestamp_on_ax(
         "our_solution": 's',
         "random_search": '^',
         "grid_search": 'D',
+        "optuna": "*",
+        "nsga": "x",
         "random_search_heuristic": '^',
         "grid_search_heuristic": 'D',
         "vd_tuner": 'p',
@@ -188,6 +190,8 @@ def plot_accumulated_timestamp_on_ax(
         "grid_search_heuristic": cm.get_cmap('tab10')(2),
         "random_search_heuristic": cm.get_cmap('tab10')(3),
         "vd_tuner": cm.get_cmap('tab10')(4),
+        "optuna": cm.get_cmap('tab10')(5),
+        "nsga": cm.get_cmap('tab10')(6),
         "10_tests": cm.get_cmap('tab10')(1),
         "5_tests": cm.get_cmap('tab10')(2),
         "3_tests": cm.get_cmap('tab10')(3),
@@ -227,7 +231,7 @@ def plot_accumulated_timestamp_on_ax(
         if solution == "brute_force":
             _label = "oracle_solution"
         elif solution == "our_solution":
-            _label = "HHAT"
+            _label = "CHAT"
         else:
             _label = solution
 
@@ -275,10 +279,12 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "brute_force":'o', 
         "our_solution": 's', 
         "random_search": '^', 
-        "grid_search": 'D', 
+        "grid_search": 'D',
         "random_search_heuristic": '^', 
         "grid_search_heuristic": 'D', 
         "vd_tuner": 'p',
+        "optuna": '*',
+        "nsga": 'x',
         "test_solution": 'x',
         "test_solution2": "*",
         "10_tests": 's',
@@ -294,7 +300,10 @@ def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None
         "random_search": cm.get_cmap('tab10')(3),
         "grid_search_heuristic": cm.get_cmap('tab10')(2),
         "random_search_heuristic": cm.get_cmap('tab10')(3),
+        "optuna_heuristic": cm.get_cmap('tab10')(5),
         "vd_tuner": cm.get_cmap('tab10')(4),
+        "optuna": cm.get_cmap('tab10')(5),
+        "nsga": cm.get_cmap('tab10')(6),
         "test_solution": cm.get_cmap('tab10')(5),
         "test_solution2": cm.get_cmap('tab10')(6),
         "10_tests": cm.get_cmap('tab10')(1),

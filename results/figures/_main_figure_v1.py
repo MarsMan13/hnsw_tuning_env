@@ -5,8 +5,6 @@ from src.utils import filename_builder, get_optimal_hyperparameter, \
     load_search_results, plot_accumulated_timestamp_on_ax
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
-current_dir = "results/figures"
-
 MOCK_SEED = 0
 def get_results(
     impl: str,
@@ -46,48 +44,39 @@ def get_results(
         "results":results_combi
     }
 
-# FILE: main.py
-
 def main():
-    import matplotlib.font_manager as fm
-    # 1. Path to your .ttf font file.
-    #    Make sure this path is correct.
-    font_path = f'{current_dir}/LinLibertine_R.ttf'
-
-    # 2. Register font if it's not already registered.
-    if font_path not in [f.fname for f in fm.fontManager.ttflist]:
-        fm.fontManager.addfont(font_path)
-    
-    # 3. Set the registered font as the default.
-    font_name = fm.FontProperties(fname=font_path).get_name()
-    plt.rcParams['font.family'] = font_name
-
-    # 4. Ensure the minus sign is displayed correctly in plots.
-    plt.rcParams['axes.unicode_minus'] = False
     SOLUTIONS = [
-        "brute_force", "our_solution", "grid_search",
-        "random_search", "vd_tuner", "optuna", "nsga",
+        "brute_force",
+        "our_solution",
+        "grid_search",
+        "random_search",
+        "vd_tuner",
+        "optuna",
+        "nsga",
     ]
-    # NOTE: To match the requested labels (hnswlib top, faiss bottom),
-    #       we arrange the IMPLS list in that order.
     IMPLS = [
-        "hnswlib",
         "faiss",
+        "hnswlib",
     ]
     DATASETS = [
-        "nytimes-256-angular", "glove-100-angular", "sift-128-euclidean",
-        "youtube-1024-angular", "deep1M-256-angular",
+        "nytimes-256-angular",
+        "glove-100-angular",
+        "sift-128-euclidean",
+        "youtube-1024-angular",
+        "deep1M-256-angular",
     ]
-    # NOTE: Labels for each column as requested by the user.
-    COLUMN_LABELS = [
-        "nytimes", "glove", "sift", "deep1M", "youtube"
+    SAMPLING_COUNT = [
+        10,
     ]
-    SAMPLING_COUNT = [10]
-    RECALL_MINS = [0.90]
-    QPS_MIN = "q50"
-    # --- Task generation logic (same as before) ---
+    RECALL_MINS = [0.975]
+    # --- Start of multiprocessing modification ---
+
+    #* 1. Create a list to hold all the tasks to be executed.
+    # A task is a tuple of arguments for the _process_single_metric function.
     tasks = []
+    # 1st: IMPLS 순서 = [hnswlib, faiss]
     for impl in IMPLS:
+        # 2nd: metric 종류 (recall_min, qps_min)
         for metric in ["recall_min", "qps_min"]:
             for dataset in DATASETS:
                 for sampling_count in SAMPLING_COUNT:
@@ -95,63 +84,64 @@ def main():
                         for recall_min in RECALL_MINS:
                             task_args = (impl, dataset, SOLUTIONS, recall_min, None, sampling_count)
                             tasks.append(task_args)
-                    else:
-                        qps_min = get_qps_metrics_dataset(impl, dataset, ret_dict=True)[QPS_MIN]
+                    else:  # qps_min
+                        qps_min = get_qps_metrics_dataset(impl, dataset, ret_dict=True)["q90"]
                         task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
                         tasks.append(task_args)
     results = []
     for impl, dataset, solutions, recall_min, qps_min, sampling_count in tasks:
         results.append(get_results(
-            impl=impl, dataset=dataset, solutions=solutions,
-            recall_min=recall_min, qps_min=qps_min, sampling_count=sampling_count
+            impl=impl,
+            dataset=dataset,
+            solutions=solutions,
+            recall_min=recall_min,
+            qps_min=qps_min,
+            sampling_count=sampling_count
         ))
-    
-    # --- Plotting logic with requested modifications ---
+    print(len(results))
+    ## TODO
+    # 4x5 subplot 예시
+    fig, axes = plt.subplots(4, 5, figsize=(20, 12))  #! <- Original
+    # fig, axes = plt.subplots(4, 5, figsize=(22, 12))
 
-    # Create a 4x5 subplot grid
-    fig, axes = plt.subplots(4, 5, figsize=(20, 10))
-
-    # Plot data on each subplot
+    # (실제 결과 반복문)
     for ax, result in zip(axes.flat, results):
         plot_accumulated_timestamp_on_ax(
             ax, result["results"], result["recall_min"], result["qps_min"]
         )
+        # metric = "recall" if result["recall_min"] is not None else "qps"
+        # ax.set_title(f"{result['impl']} | {result['dataset']} | {metric}")
 
-    # 1. Gather unique handles and labels for the main legend
+    # 1️⃣ 모든 subplot의 핸들/라벨 모으기
     handles, labels = [], []
     for ax in axes.flat:
         h, l = ax.get_legend_handles_labels()
         handles.extend(h)
         labels.extend(l)
+
+    # 2️⃣ 중복 제거
     by_label = dict(zip(labels, handles))
 
-    # 2. Create the main legend at the top
+    # 3️⃣ 범례를 Figure 위쪽에 띄우되, Figure 안쪽이 아니라 조금 바깥에 두기
     fig.legend(
-        by_label.values(), by_label.keys(),
+        by_label.values(),
+        by_label.keys(),
         loc='upper center',
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=6, fontsize=18, frameon=False
+        bbox_to_anchor=(0.5, 1.0),   # Figure 영역을 벗어나 위쪽 10% 공간에 배치
+        ncol=5,
+        fontsize=18,
+        frameon=False
     )
 
-    # 3. Add vertical row labels on the left side of the figure
-    fig.text(0.02, 0.70, 'hnswlib', va='center', ha='center', rotation='vertical', fontsize=24)
-    fig.text(0.02, 0.30, 'faiss',   va='center', ha='center', rotation='vertical', fontsize=24)
-
-    # 4. Add column labels at the bottom of the figure
-    for i, label in enumerate(COLUMN_LABELS):
-        axes[3, i].set_xlabel(label, fontsize=20, labelpad=10)
-
-    # 5. Adjust subplot layout to prevent overlap and make space for new labels
+    # 4️⃣ subplots 간격 수동 조정
     plt.subplots_adjust(
-        left=0.06,   # Make space for vertical labels
-        bottom=0.1,  # Make space for column labels
-        top=0.94,    # Make space for the top legend
+        top=0.95,   # 위쪽 subplot 영역을 90%까지만 사용하여 legend 영역 확보
         wspace=0.3,
-        hspace=0.4   # Adjust vertical space between plots
+        hspace=0.3
     )
 
     fig.savefig("main_figure.pdf", bbox_inches="tight")
-    plt.show()
+    plt.show() 
 
 if __name__ == "__main__":
     # This check is crucial for multiprocessing to work correctly,

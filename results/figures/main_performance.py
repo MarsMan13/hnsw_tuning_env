@@ -38,6 +38,8 @@ def main():
         "random_search",
         "grid_search",
         "vd_tuner",
+        "optuna",
+        "nsga",
     ]
     RECALL_MINS = [0.95]
     QPS_MINS = ["q75"]

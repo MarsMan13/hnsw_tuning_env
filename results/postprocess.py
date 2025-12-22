@@ -5,9 +5,10 @@ import numpy as np
 from scipy.stats import spearmanr
 
 from src.constants import TUNING_BUDGET
-from src.utils import filename_builder, get_optimal_hyperparameter, load_search_results, \
-    plot_multi_accumulated_timestamp, save_optimal_hyperparameters, optimal_hyperparameters_for_times, \
-    plot_multi_accumulated_timestamp_for_main_figure
+from src.utils import (filename_builder, get_optimal_hyperparameter, load_search_results,
+    plot_multi_accumulated_timestamp, save_optimal_hyperparameters, optimal_hyperparameters_for_times,
+    # plot_multi_accumulated_timestamp_for_main_figure
+)
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 # def process_file():
@@ -77,16 +78,16 @@ def _process_single_metric(
         sampling_count=sampling_count,
     )
     #* 3.5 Plotting accumulated_timestamp for main figure
-    plot_multi_accumulated_timestamp_for_main_figure(
-        results=results_combi,
-        dirname="all",
-        filename=f"{impl}_{dataset}_{metric_type}_{metric_value}_accumulated.png",
-        recall_min=recall_min,
-        qps_min=qps_min,
-        tuning_budget=tuning_time,
-        seed=MOCK_SEED,
-        sampling_count=sampling_count,
-    )
+    # plot_multi_accumulated_timestamp_for_main_figure(
+    #     results=results_combi,
+    #     dirname="all",
+    #     filename=f"{impl}_{dataset}_{metric_type}_{metric_value}_accumulated.png",
+    #     recall_min=recall_min,
+    #     qps_min=qps_min,
+    #     tuning_budget=tuning_time,
+    #     seed=MOCK_SEED,
+    #     sampling_count=sampling_count,
+    # )
 
     #* 4. Save Optimal Hyperparameters of each solution
     for solution, results in results_combi.items():
@@ -142,6 +143,7 @@ def main():
         "grid_search",
         "random_search",
         "vd_tuner",
+        "optuna",
         # "test_solution",
         # "grid_search_heuristic",
         # "random_search_heuristic",
@@ -160,12 +162,13 @@ def main():
         "glove-100-angular",
         "sift-128-euclidean",
         "youtube-1024-angular",
+        # "deep1M-256-angular",
     ]
     SAMPLING_COUNT = [
         10,
-        # 1,
-        # 3,
-        # 5,
+        1,
+        3,
+        5,
     ]
     RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
     # --- Start of multiprocessing modification ---

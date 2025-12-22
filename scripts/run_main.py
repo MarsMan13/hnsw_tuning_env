@@ -18,6 +18,8 @@ from src.solutions.vd_tuner.run import run as vd_tuner
 from src.solutions.our_solution.run import run as our_solution
 # from src.solutions.our_solution.run_old import run as test_solution
 from src.solutions.grid_search.run import run as grid_search
+from src.solutions.optuna.run import run as optuna
+from src.solutions.nsga.run import run as nsga
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 if __name__ == "__main__":
@@ -26,21 +28,22 @@ if __name__ == "__main__":
         "faiss",
     ]
     DATASETS = [
-        # "nytimes-256-angular",
-        # "glove-100-angular",
-        # "sift-128-euclidean",
-        # "youtube-1024-angular",
+        "nytimes-256-angular",
+        "glove-100-angular",
+        "sift-128-euclidean",
         "deep1M-256-angular",
+        "youtube-1024-angular",
         # "msmarco-384-angular",
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
         (brute_force, "brute_force"),
-        # (grid_search, "grid_search"),
-        # (random_search, "random_search"),
-        # (vd_tuner, "vd_tuner"),
-        # (our_solution, "our_solution"),
-        # (test_solution, "test_solution"),
+        (grid_search, "grid_search"),
+        (random_search, "random_search"),
+        (optuna, "optuna"),
+        (nsga, "nsga"),
+        (vd_tuner, "vd_tuner"),
+        (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
         0.90,
@@ -50,9 +53,9 @@ if __name__ == "__main__":
         0.99,
     ]
     SAMPLING_COUNT = [
-        # 1,
-        # 3,
-        # 5,
+        1,
+        3,
+        5,
         10,
     ]
 

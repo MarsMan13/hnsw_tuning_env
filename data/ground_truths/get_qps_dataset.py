@@ -16,6 +16,7 @@ def get_qps_metrics_dataset(impl, dataset, ret_dict=False):
     if not ret_dict:
         # return q50, q60, q70, q75, q80, q90, q95
         # return q50, q75, q90, q95
+        return (q75, )
         return q50, q60, q75, q80, q90
     return {
         "q50": q50,

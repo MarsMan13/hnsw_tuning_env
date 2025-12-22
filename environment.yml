@@ -40,10 +40,11 @@ dependencies:
   - zlib=1.2.13
   - pip
   - pip:
+    - optuna>=4.0.0,<5.0.0
     - argon2-cffi==23.1.0
     - argon2-cffi-bindings==21.2.0
-    - borch=0.1.6
-    - botorch=0.9.3
+    - borch==0.1.6
+    - botorch==0.9.3
     - certifi==2025.4.26
     - cffi==1.17.1
     - charset-normalizer==3.4.1
@@ -111,7 +112,7 @@ dependencies:
     - style==1.1.0
     - sympy==1.13.3
     - threadpoolctl==3.6.0
-    - torch==2.5.1
+    # - torch==2.5.1
     - tqdm==4.67.1
     - typeguard==2.13.3
     - typer==0.15.2
@@ -125,4 +126,3 @@ dependencies:
     - wheel==0.45.1
     - wrapt==1.17.0
     - zipp==3.21.0
-prefix: /home/prof_do/anaconda3/envs/vdtuner

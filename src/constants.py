@@ -11,6 +11,6 @@ RECALL_MIN = 0.90
 EFC_MIN, EFC_MAX = 8, 1024
 # EFC_MIN, EFC_MAX = 8, 512
 #! **************************************
-SEED = 42
-TUNING_BUDGET = 3600 * 24    # hours
+SEED = 40
+TUNING_BUDGET = 3600 * 4    # hours
 #****************************************
