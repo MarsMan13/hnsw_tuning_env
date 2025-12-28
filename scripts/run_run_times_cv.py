@@ -223,19 +223,19 @@ def run_analysis(
 
 
 if __name__ == "__main__":
-    # IMPLS = ["hnswlib", "faiss"]
-    # DATASETS = [
-    #     "nytimes-256-angular",
-    #     "glove-100-angular",
-    #     "sift-128-euclidean",
-    #     "youtube-1024-angular",
-    #     "deep1M-256-angular",
-    # ]
-    IMPLS = ["milvus"]
+    IMPLS = ["hnswlib", "faiss"]
     DATASETS = [
         "nytimes-256-angular",
         "glove-100-angular",
         "sift-128-euclidean",
+        "youtube-1024-angular",
+        "deep1M-256-angular",
     ]
+    # IMPLS = ["milvus"]
+    # DATASETS = [
+    #     "nytimes-256-angular",
+    #     "glove-100-angular",
+    #     "sift-128-euclidean",
+    # ]
     COUNTS = [10, 5, 3, 1]  # evaluation counts to compare
     run_analysis(IMPLS, DATASETS, COUNTS, ref_count=10, out_dir="analysis_outputs")

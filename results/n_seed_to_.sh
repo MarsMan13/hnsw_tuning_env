@@ -1,54 +1,43 @@
 #!/bin/bash
 
-# This script copies all directories from a source directory (./result/{number})
-# to a destination directory (./result/0).
-# It takes one argument: the number for the source directory.
+# Usage:
+#   ./copy_dirs.sh <src_number> [dst_number]
+# If dst_number is omitted, it defaults to 0.
 
-# --- 1. Check for Input Argument ---
-# Check if a number was provided as an argument.
+# --- 1. Check source argument ---
 if [ -z "$1" ]; then
-    echo "Error: No number provided."
-    echo "Usage: ./copy_dirs.sh <number>"
+    echo "Error: No source number provided."
+    echo "Usage: ./copy_dirs.sh <src_number> [dst_number]"
     exit 1
 fi
 
-# --- 2. Define Source and Destination Directories ---
-INPUT_NUMBER=$1
-SOURCE_DIR="./result/$INPUT_NUMBER"
-DEST_DIR="./result/0"
+SRC_NUM="$1"
+DST_NUM="${2:-0}"   # default to 0 if not provided
 
-echo "Source directory: $SOURCE_DIR"
-echo "Destination directory: $DEST_DIR"
+SOURCE_DIR="./result/$SRC_NUM"
+DEST_DIR="./result/$DST_NUM"
 
-# --- 3. Validate Directories ---
-# Check if the source directory exists.
+echo "Source directory      : $SOURCE_DIR"
+echo "Destination directory : $DEST_DIR"
+echo "---"
+
+# --- 2. Validate source directory ---
 if [ ! -d "$SOURCE_DIR" ]; then
     echo "Error: Source directory '$SOURCE_DIR' does not exist."
     exit 1
 fi
 
-# Create the destination directory if it doesn't exist.
-# The '-p' flag prevents an error if the directory already exists.
+# --- 3. Ensure destination directory exists ---
 mkdir -p "$DEST_DIR"
-echo "Ensuring destination directory '$DEST_DIR' exists."
-echo "---"
 
-# --- 4. Find and Copy Directories ---
-# Loop through all items in the source directory.
-# The '*/' pattern ensures we only get directories.
+# --- 4. Copy subdirectories ---
 for dir_path in "$SOURCE_DIR"/*/; do
-    # Check if the found path is actually a directory to avoid errors with '*/'
-    # if no directories are found.
-    if [ -d "$dir_path" ]; then
-        # Use 'basename' to get just the directory name for the log message.
-        dir_name=$(basename "$dir_path")
-        echo "Copying directory: '$dir_name' -> '$DEST_DIR'"
-        
-        # Use 'cp -r' to recursively copy the directory and its contents.
-        # The quotes handle directory names with spaces.
-        cp -r "$dir_path" "$DEST_DIR"
-    fi
+    [ -d "$dir_path" ] || continue
+
+    dir_name=$(basename "$dir_path")
+    echo "Copying '$dir_name' -> '$DEST_DIR/'"
+    cp -r "$dir_path" "$DEST_DIR"
 done
 
 echo "---"
-echo "All directories have been copied successfully."
+echo "Done."

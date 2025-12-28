@@ -4,6 +4,8 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.ndimage import gaussian_filter
 from csv import reader
 import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import random
 from src.constants import SEED, MAX_SAMPLING_COUNT
 
@@ -82,7 +84,7 @@ class GroundTruth:
         self.interp_total_time = LinearNDInterpolator(points, total_times)
         self.interp_build_time = LinearNDInterpolator(points, build_times)
         self.interp_index_size = LinearNDInterpolator(points, index_sizes)
-    
+
     def load_ground_truths(self, impl: str="hnswlib", dataset: str="nytimes"):
         results = dict()
         filename = f"{impl}/{dataset}.csv"
@@ -211,8 +213,8 @@ class GroundTruth:
         if target_qps:
             return self._get_efS_for_qps(M, efC, target_qps, method, efS_min, efS_max, tolerance)
         raise ValueError("Critical error: this should never happen.") 
-        
-        
+
+    
 if __name__ == "__main__":
     gd = GroundTruth("faiss", "nytimes-256-angular")
     print(gd.get(48, 202, 32))

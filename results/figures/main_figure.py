@@ -1,13 +1,19 @@
+import os
 import matplotlib.pyplot as plt
 
 from src.constants import TUNING_BUDGET
-from src.utils import filename_builder, get_optimal_hyperparameter, \
-    load_search_results, plot_accumulated_timestamp_on_ax
+from src.utils import (
+    filename_builder,
+    get_optimal_hyperparameter,
+    load_search_results,
+    plot_accumulated_timestamp_on_ax,
+)
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 current_dir = "results/figures"
-
 MOCK_SEED = 0
+
+
 def get_results(
     impl: str,
     dataset: str,
@@ -17,25 +23,20 @@ def get_results(
     sampling_count: int = None,
     tuning_time: int = TUNING_BUDGET,
 ):
-
     results_combi = {}
-    #* 1. Load results for all solutions under the given condition
     for solution in solutions:
-        filename = filename_builder(
-            solution, impl, dataset, recall_min, qps_min
-        )
+        filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+
         if solution == "brute_force":
-            optimal_hp = get_optimal_hyperparameter(
-                results, recall_min=recall_min, qps_min=qps_min
-            )
+            optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
             hp = optimal_hp[0]
             _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
-            optimal_hp = (hp, perf)
-            results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
+            results = [(hp, perf)]
         else:
-            results = [result for result in results if result[1][0] <= tuning_time]  # Filter results by tuning time
+            results = [r for r in results if r[1][0] <= tuning_time]
+
         results_combi[solution] = results
 
     return {
@@ -43,49 +44,170 @@ def get_results(
         "dataset": dataset,
         "recall_min": recall_min,
         "qps_min": qps_min,
-        "results":results_combi
+        "results": results_combi,
     }
 
-# FILE: main.py
+
+# =========================
+# Analysis helpers (same logic as your milvus script)
+# =========================
+
+def best_feasible_perf_until(results_dict, solution_key, until_time=TUNING_BUDGET):
+    """
+    Return (best_perf, best_time) where best_perf is the best objective metric
+    among trials that satisfy the constraint and have tuning_time <= until_time.
+    If nothing feasible, returns (None, None).
+    """
+    sol_list = results_dict["results"].get(solution_key, [])
+    if not sol_list:
+        return None, None
+
+    best_perf = None
+    best_t = None
+
+    for hp, perf in sol_list:
+        t = perf[0]
+        if t > until_time:
+            continue
+
+        recall = perf[1]
+        qps = perf[2]
+
+        if results_dict["recall_min"] is not None:
+            # feasible requires recall >= recall_min
+            if recall < results_dict["recall_min"]:
+                continue
+            metric = qps  # objective
+        else:
+            # feasible requires qps >= qps_min
+            if qps < results_dict["qps_min"]:
+                continue
+            metric = recall  # objective
+
+        if best_perf is None or metric > best_perf:
+            best_perf = metric
+            best_t = t
+
+    return best_perf, best_t
+
+
+def first_time_reach_threshold(results_dict, solution_key, threshold):
+    """
+    Return earliest tuning_time t such that (constraint satisfied) and (metric >= threshold).
+    If never reached, return None.
+    """
+    sol_list = results_dict["results"].get(solution_key, [])
+    if not sol_list:
+        return None
+
+    sol_list = sorted(sol_list, key=lambda r: r[1][0])  # chronological
+
+    for hp, perf in sol_list:
+        t = perf[0]
+        recall = perf[1]
+        qps = perf[2]
+
+        if results_dict["recall_min"] is not None:
+            if recall < results_dict["recall_min"]:
+                continue
+            metric = qps
+        else:
+            if qps < results_dict["qps_min"]:
+                continue
+            metric = recall
+
+        if metric >= threshold:
+            return t
+
+    return None
+
+
+def analyze_panel(results_dict, panel_name, print_only=None):
+    """
+    print_only: Optional set/list of solution keys to print. If None, print all.
+    """
+    oracle_best, oracle_best_t = best_feasible_perf_until(
+        results_dict, "brute_force", until_time=TUNING_BUDGET
+    )
+    if oracle_best is None:
+        print(f"[{panel_name}] Oracle has no feasible point.")
+        return
+
+    target95 = 0.95 * oracle_best
+
+    print(f"\n=== {panel_name} ===")
+    print(f"Oracle best (feasible, <=budget): {oracle_best:.6g} @ t={oracle_best_t:.3f}s")
+    print(f"95% target: {target95:.6g}")
+
+    keys = list(results_dict["results"].keys())
+    if print_only is not None:
+        keys = [k for k in keys if k in set(print_only)]
+
+    for sol in keys:
+        best, best_t = best_feasible_perf_until(results_dict, sol, until_time=TUNING_BUDGET)
+        t95 = first_time_reach_threshold(results_dict, sol, target95)
+
+        if best is None:
+            best_str = "None"
+            ratio_str = "None"
+        else:
+            ratio = (best / oracle_best) * 100.0
+            best_str = f"{best:.6g} @ t={best_t:.3f}s"
+            ratio_str = f"{ratio:.2f}%"
+
+        t95_str = "None" if t95 is None else f"{t95:.3f}s"
+
+        print(
+            f"- {sol:12s} | best@budget: {best_str:>22s} | oracle%: {ratio_str:>8s} | first95%: {t95_str}"
+        )
+
+
+def analyze_all_results(results_list):
+    """
+    results_list: list of results_dict produced by get_results
+    """
+    for r in results_list:
+        impl = r["impl"]
+        dataset = r["dataset"]
+
+        if r["recall_min"] is not None:
+            panel = f"{impl} / {dataset} / recall_min={r['recall_min']} (maximize QPS)"
+        else:
+            panel = f"{impl} / {dataset} / qps_min={r['qps_min']} (maximize Recall)"
+
+        analyze_panel(r, panel_name=panel)
+
+
+# =========================
+# Main (plot + analysis)
+# =========================
 
 def main():
     import matplotlib.font_manager as fm
-    # 1. Path to your .ttf font file.
-    #    Make sure this path is correct.
-    font_path = f'{current_dir}/LinLibertine_R.ttf'
 
-    # 2. Register font if it's not already registered.
+    font_path = f"{current_dir}/LinLibertine_R.ttf"
     if font_path not in [f.fname for f in fm.fontManager.ttflist]:
         fm.fontManager.addfont(font_path)
-    
-    # 3. Set the registered font as the default.
-    font_name = fm.FontProperties(fname=font_path).get_name()
-    plt.rcParams['font.family'] = font_name
 
-    # 4. Ensure the minus sign is displayed correctly in plots.
-    plt.rcParams['axes.unicode_minus'] = False
+    font_name = fm.FontProperties(fname=font_path).get_name()
+    plt.rcParams["font.family"] = font_name
+    plt.rcParams["axes.unicode_minus"] = False
+
     SOLUTIONS = [
         "brute_force", "our_solution", "grid_search",
         "random_search", "vd_tuner", "optuna", "nsga",
     ]
-    # NOTE: To match the requested labels (hnswlib top, faiss bottom),
-    #       we arrange the IMPLS list in that order.
-    IMPLS = [
-        "hnswlib",
-        "faiss",
-    ]
+    IMPLS = ["hnswlib", "faiss"]
     DATASETS = [
         "nytimes-256-angular", "glove-100-angular", "sift-128-euclidean",
         "youtube-1024-angular", "deep1M-256-angular",
     ]
-    # NOTE: Labels for each column as requested by the user.
-    COLUMN_LABELS = [
-        "nytimes", "glove", "sift", "deep1M", "youtube"
-    ]
+    COLUMN_LABELS = ["nytimes", "glove", "sift", "deep1M", "youtube"]
+
     SAMPLING_COUNT = [10]
-    RECALL_MINS = [0.90]
-    QPS_MIN = "q50"
-    # --- Task generation logic (same as before) ---
+    RECALL_MINS = [0.95]
+    QPS_MIN_KEY = "q75"
+
     tasks = []
     for impl in IMPLS:
         for metric in ["recall_min", "qps_min"]:
@@ -93,31 +215,30 @@ def main():
                 for sampling_count in SAMPLING_COUNT:
                     if metric == "recall_min":
                         for recall_min in RECALL_MINS:
-                            task_args = (impl, dataset, SOLUTIONS, recall_min, None, sampling_count)
-                            tasks.append(task_args)
+                            tasks.append((impl, dataset, SOLUTIONS, recall_min, None, sampling_count))
                     else:
-                        qps_min = get_qps_metrics_dataset(impl, dataset, ret_dict=True)[QPS_MIN]
-                        task_args = (impl, dataset, SOLUTIONS, None, qps_min, sampling_count)
-                        tasks.append(task_args)
+                        qps_min = get_qps_metrics_dataset(impl, dataset, ret_dict=True)[QPS_MIN_KEY]
+                        tasks.append((impl, dataset, SOLUTIONS, None, qps_min, sampling_count))
+
     results = []
     for impl, dataset, solutions, recall_min, qps_min, sampling_count in tasks:
-        results.append(get_results(
-            impl=impl, dataset=dataset, solutions=solutions,
-            recall_min=recall_min, qps_min=qps_min, sampling_count=sampling_count
-        ))
-    
-    # --- Plotting logic with requested modifications ---
-
-    # Create a 4x5 subplot grid
-    fig, axes = plt.subplots(4, 5, figsize=(20, 10))
-
-    # Plot data on each subplot
-    for ax, result in zip(axes.flat, results):
-        plot_accumulated_timestamp_on_ax(
-            ax, result["results"], result["recall_min"], result["qps_min"]
+        results.append(
+            get_results(
+                impl=impl,
+                dataset=dataset,
+                solutions=solutions,
+                recall_min=recall_min,
+                qps_min=qps_min,
+                sampling_count=sampling_count,
+            )
         )
 
-    # 1. Gather unique handles and labels for the main legend
+    # ===== Plot (unchanged) =====
+    fig, axes = plt.subplots(4, 5, figsize=(20, 10))
+
+    for ax, result in zip(axes.flat, results):
+        plot_accumulated_timestamp_on_ax(ax, result["results"], result["recall_min"], result["qps_min"])
+
     handles, labels = [], []
     for ax in axes.flat:
         h, l = ax.get_legend_handles_labels()
@@ -125,36 +246,30 @@ def main():
         labels.extend(l)
     by_label = dict(zip(labels, handles))
 
-    # 2. Create the main legend at the top
     fig.legend(
-        by_label.values(), by_label.keys(),
-        loc='upper center',
+        by_label.values(),
+        by_label.keys(),
+        loc="upper center",
         bbox_to_anchor=(0.5, 1.0),
-        ncol=6, fontsize=18, frameon=False
+        ncol=6,
+        fontsize=18,
+        frameon=False,
     )
 
-    # 3. Add vertical row labels on the left side of the figure
-    fig.text(0.02, 0.70, 'hnswlib', va='center', ha='center', rotation='vertical', fontsize=24)
-    fig.text(0.02, 0.30, 'faiss',   va='center', ha='center', rotation='vertical', fontsize=24)
+    fig.text(0.02, 0.70, "hnswlib", va="center", ha="center", rotation="vertical", fontsize=24)
+    fig.text(0.02, 0.30, "faiss", va="center", ha="center", rotation="vertical", fontsize=24)
 
-    # 4. Add column labels at the bottom of the figure
     for i, label in enumerate(COLUMN_LABELS):
         axes[3, i].set_xlabel(label, fontsize=20, labelpad=10)
 
-    # 5. Adjust subplot layout to prevent overlap and make space for new labels
-    plt.subplots_adjust(
-        left=0.06,   # Make space for vertical labels
-        bottom=0.1,  # Make space for column labels
-        top=0.94,    # Make space for the top legend
-        wspace=0.3,
-        hspace=0.4   # Adjust vertical space between plots
-    )
+    plt.subplots_adjust(left=0.06, bottom=0.1, top=0.94, wspace=0.3, hspace=0.4)
 
     fig.savefig("main_figure.pdf", bbox_inches="tight")
     plt.show()
 
+    # ===== Analysis (new) =====
+    analyze_all_results(results)
+
+
 if __name__ == "__main__":
-    # This check is crucial for multiprocessing to work correctly,
-    # especially on Windows and macOS. It prevents child processes from
-    # re-importing and re-executing the main script's code.
     main()

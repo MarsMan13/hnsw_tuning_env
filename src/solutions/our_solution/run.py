@@ -20,7 +20,7 @@ class HyperparameterTuner:
     Encapsulates the entire hyperparameter tuning process to avoid global state
     and improve code structure.
     """
-    def __init__(self, ground_truth: GroundTruth, recall_min: float = None, qps_min: float = None, tuning_budget: float = TUNING_BUDGET):
+    def __init__(self, ground_truth: GroundTruth, recall_min: float = None, qps_min: float = None, tuning_budget: float = TUNING_BUDGET, log_level: int = 1):
         assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
         
         self.ground_truth = ground_truth
@@ -35,6 +35,14 @@ class HyperparameterTuner:
         self.searched_hp: set = set()    #* set of (M, efC, efS) tuples
         self.efC_getter = EfCGetter()
         self.efS_getter = EfSGetterV2()
+        self.__log_level = log_level    # 1 : info, 2 : debug, 3 : trace
+        if not (1 <= self.__log_level and self.__log_level <= 3):
+            raise ValueError("log_level must be between 1 and 3.")
+
+    def __log(self, message: str, level: int = 1):
+        """Logs a messag if the current log level is sufficient."""
+        if self.__log_level >= level:
+            print(message)
 
     def _get_perf(self, perf: Tuple[float, float]) -> float:
         """Returns the relevant performance metric (recall or QPS) based on the optimization goal."""
@@ -43,18 +51,19 @@ class HyperparameterTuner:
 
     def run_tuning(self) -> List[Tuple[Tuple, Tuple]]:
         """Executes the full tuning process, including exploration and exploitation phases."""
-        print("--- Starting Exploration Phase ---")
+        self.__log("--- Starting Exploration Phase ---", level=1)
         self._exploration_phase()
         self.stats.exploration_phase(self.results)
         remaining_budget = self.tuning_budget - self.ground_truth.tuning_time
         if remaining_budget > 0:
-            print(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---")
+            self.__log(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---", 1)
             self.results.append(((0, 0, 0), (self.ground_truth.tuning_time, 0.0, 0.0, 0.0, 0.0, 0)))  # Add dummy result for stats
-            # self._exploitation_phase()
+            self._exploitation_phase()
         self.stats.exploitation_phase(self.results)
         print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
-        print("\n--- Tuning is Done! ---")
+        self.__log("\n--- Tuning is Done! ---", 1)
         return self.results
+    
 
     def _exploration_phase(self):
         """
@@ -78,7 +87,7 @@ class HyperparameterTuner:
                     perf_mid1 = self._find_best_efc_for_m(m_mid1)
                     self.m_to_perf.append((m_mid1, perf_mid1))
                     processed_m.add(m_mid1)
-                
+
                 # Process mid2 if not already done
                 if m_mid2 not in processed_m:
                     perf_mid2 = self._find_best_efc_for_m(m_mid2)
@@ -89,7 +98,7 @@ class HyperparameterTuner:
                 perf_mid1 = next((p for m, p in self.m_to_perf if m == m_mid1), 0.0)
                 perf_mid2 = next((p for m, p in self.m_to_perf if m == m_mid2), 0.0)
 
-                print(f"\n[M Exploration] Range [{m_bottom}, {m_top}]: M1({m_mid1}) -> {perf_mid1:.4f}, M2({m_mid2}) -> {perf_mid2:.4f}")
+                self.__log(f"\n[M Exploration] Range [{m_bottom}, {m_top}]: M1({m_mid1}) -> {perf_mid1:.4f}, M2({m_mid2}) -> {perf_mid2:.4f}", 2)
 
                 # Heuristic to shrink the search space for M
                 if perf_mid1 == perf_mid2:
@@ -116,24 +125,74 @@ class HyperparameterTuner:
 
     def _exploitation_phase(self):
         """
-        Focuses on the most promising 'M' values found during the exploration phase
-        and performs a more detailed search for efC.
+        Exploit promising M values found in exploration:
+        - pick top-K M's by perf
+        - for each M, refine efC around the best-known efC using zigzag expansion
+        - stop when exploitation budget is exhausted
         """
         if not self.m_to_perf:
-            print("Warning: No M configurations found to exploit.")
+            self.__log("Warning: No M configurations found to exploit.", 1)
             return
 
-        # Sort M by performance in descending order
-        sorted_m_configs = sorted(self.m_to_perf, key=lambda x: x[1], reverse=True)
-        
-        try:
-            for m_val, _ in sorted_m_configs:
-                if self.ground_truth.tuning_time > self.tuning_budget:
-                    raise TimeoutError("Tuning budget exceeded during exploitation.")
-                print(f"\n[Exploitation] Refining M={m_val}...")
-                self._find_best_efc_for_m(m_val, is_exploitation=True)
-        except TimeoutError as e:
-            print(f"Timeout: {e}")
+        # Sort by performance descending
+        sorted_m = sorted(self.m_to_perf, key=lambda x: x[1], reverse=True)
+
+        # Use only part of remaining budget for exploitation
+        remaining = self.tuning_budget - self.ground_truth.tuning_time
+        if remaining <= 0:
+            return
+
+        exploit_budget = 0.5 * remaining  # tweakable (e.g., 0.3~0.7)
+        exploit_deadline = self.ground_truth.tuning_time + exploit_budget
+
+        # Choose how many M's to exploit (small K is usually enough)
+        K = min(5, len(sorted_m))
+
+        self.__log(f"[Exploitation] remaining={remaining:.2f}s, exploit_budget={exploit_budget:.2f}s, K={K}", 1)
+
+        for rank in range(K):
+            if self.ground_truth.tuning_time >= exploit_deadline:
+                break
+
+            m_val = sorted_m[rank][0]
+            self.__log(f"[Exploitation] Refining M={m_val}", 1)
+
+            # 1) Determine a center efC to exploit.
+            # Prefer "best range" from EfCGetter if available; otherwise fallback to last known range.
+            try:
+                efc_left, efc_right = self.efC_getter.get_best(m_val)  # if implemented
+            except Exception:
+                efc_left, efc_right = self.efC_getter.get(m_val)
+
+            # Center candidate: midpoint of best-known interval
+            efc_center = (efc_left + efc_right) // 2
+
+            # Evaluate the center once (if not already evaluated)
+            self._evaluate_hp(m_val, efc_center)
+
+            # 2) Zigzag expand around center.
+            # Determine max possible offset within bounds.
+            max_offset = max(efc_center - EFC_MIN, EFC_MAX - efc_center)
+
+            for offset in range(1, max_offset + 1):
+                if self.ground_truth.tuning_time >= exploit_deadline:
+                    break
+
+                candidates = []
+                left = efc_center - offset
+                right = efc_center + offset
+                if left >= EFC_MIN:
+                    candidates.append(left)
+                if right <= EFC_MAX:
+                    candidates.append(right)
+
+                # optional: shuffle to reduce bias
+                # random.shuffle(candidates)
+
+                for efc in candidates:
+                    if self.ground_truth.tuning_time >= exploit_deadline:
+                        break
+                    self._evaluate_hp(m_val, efc)
 
 
     def _find_best_efc_for_m(self, m: int, is_exploitation: bool = False) -> float:
@@ -175,7 +234,7 @@ class HyperparameterTuner:
                 self.efC_getter.put(m, efc_left, efc_right)
             
             max_perf_of_m = max(max_perf_of_m, perf_mid1, perf_mid2)
-            print(f"\t[efC Search for M={m}] Range [{efc_left}, {efc_right}]: efC1({efc_mid1}) -> {perf_mid1:.4f}, efC2({efc_mid2}) -> {perf_mid2:.4f}")
+            self.__log(f"[efC Search for M][{m}] {efc_mid1} -> {perf_mid1:.4f}, {efc_mid2} -> {perf_mid2:.4f}", 2)
 
         # Exhaustive search in the final small range of efC
         for efc in range(efc_left, efc_right + 1):
@@ -189,7 +248,7 @@ class HyperparameterTuner:
             perf = self._evaluate_hp(m, efc)
             max_perf_of_m = max(max_perf_of_m, perf)
 
-        print(f"\t=> Max performance for M={m}: {max_perf_of_m:.4f}")
+        self.__log(f"=> Max perf of M={m}: {max_perf_of_m:.4f}", 2)
         return max_perf_of_m
 
     def _evaluate_hp(self, m: int, efc: int) -> float:
@@ -202,7 +261,7 @@ class HyperparameterTuner:
 
         efs_min, efs_max = self.efS_getter.get(m, efc)
         efs = self.ground_truth.get_efS(m, efc, self.recall_min, self.qps_min, efS_min=efs_min, efS_max=efs_max)
-        print(f"{efs_min} <= {efs} <= {efs_max}") 
+        self.__log(f"{efs_min} <= {efs} <= {efs_max}", 2)
         self.efS_getter.put(m, efc, efs)
         
         hp = (m, efc, efs)
@@ -218,14 +277,15 @@ class HyperparameterTuner:
         self.searched_hp.add(hp)
         self.results.append((hp, (self.ground_truth.tuning_time, *perf_tuple)))
         
-        return self._get_perf(perf_tuple)
+        perf = self._get_perf(perf_tuple)
+        return perf
 
 # =====================================================
 
 def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, sampling_count=None, env=(TUNING_BUDGET, SEED), stats=False):
     random.seed(SEED)
     ground_truth = GroundTruth(impl=impl, dataset=dataset, sampling_count=sampling_count)
-    tuner = HyperparameterTuner(ground_truth, recall_min, qps_min, tuning_budget)
+    tuner = HyperparameterTuner(ground_truth, recall_min, qps_min, tuning_budget, log_level=2)
     results = tuner.run_tuning()
     if stats:
         return results, tuner.stats, tuner.efC_getter.stats()
@@ -240,8 +300,9 @@ def run_recall_min_experiments():
         # for IMPL in ["hnswlib"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
-            # for DATASET in ["nytimes-256-angular"]:
+            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
+            # for DATASET in ["glove-100-angular"]:
+            for DATASET in ["nytimes-256-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with RECALL_MIN={RECALL_MIN}")
                 results, stat, efS_stat = run(IMPL, DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET, stats=True)
                 for result in results:
@@ -271,5 +332,5 @@ def run_qps_min_experiments():
 
 # The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
 if __name__ == "__main__":
-    # run_recall_min_experiments()
-    run_qps_min_experiments()
+    run_recall_min_experiments()
+    # run_qps_min_experiments()

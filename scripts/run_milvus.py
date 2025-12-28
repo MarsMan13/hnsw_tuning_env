@@ -28,8 +28,8 @@ if __name__ == "__main__":
     ]
     DATASETS = [
         "nytimes-256-angular",
-        # "glove-100-angular",
-        # "sift-128-euclidean",
+        "glove-100-angular",
+        "sift-128-euclidean",
         # "deep1M-256-angular",
         # "youtube-1024-angular",
     ]
@@ -38,9 +38,9 @@ if __name__ == "__main__":
         # (grid_search, "grid_search"),
         # (random_search, "random_search"),
         # (our_solution, "our_solution"),
-        # (vd_tuner, "vd_tuner"),
-        (nsga, "nsga"),
-        (optuna, "optuna"),
+        (vd_tuner, "vd_tuner"),
+        # (nsga, "nsga"),
+        # (optuna, "optuna"),
     ]
     RECALL_MINS = [
         # 0.90,

@@ -37,25 +37,25 @@ if __name__ == "__main__":
         # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        (brute_force, "brute_force"),
-        (grid_search, "grid_search"),
-        (random_search, "random_search"),
-        (optuna, "optuna"),
-        (nsga, "nsga"),
+        # (brute_force, "brute_force"),
+        # (grid_search, "grid_search"),
+        # (random_search, "random_search"),
+        # (optuna, "optuna"),
+        # (nsga, "nsga"),
         (vd_tuner, "vd_tuner"),
-        (our_solution, "our_solution"),
+        # (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
-        0.90,
-        0.925,
-        0.95,
-        0.975,
-        0.99,
+        # 0.90,
+        # 0.925,
+        # 0.95,
+        # 0.975,
+        # 0.99,
     ]
     SAMPLING_COUNT = [
-        1,
-        3,
-        5,
+        # 1,
+        # 3,
+        # 5,
         10,
     ]
 
