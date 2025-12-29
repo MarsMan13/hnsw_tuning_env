@@ -5,6 +5,7 @@ matplotlib.use('Agg')  # Use a non-interactive backend for saving plots
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from src.constants import EFC_MAX, EFC_MIN, M_MAX, M_MIN, RECALL_MIN, SEED, TOLERANCE, TUNING_BUDGET, MAX_SAMPLING_COUNT
 
@@ -627,3 +628,187 @@ def plot_efS_3d(results, solution, filename, recall_min=None, qps_min=None, tuni
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
+
+import numpy as np
+from matplotlib import cm, colors
+from src.constants import TUNING_BUDGET, TOLERANCE
+
+
+def _feasible_and_objective_factory(recall_min, qps_min, tuning_budget):
+    assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
+
+    if recall_min is not None:
+        y_label = "QPS"
+
+        def is_feasible(perf):
+            # Use tolerance to avoid missing borderline points
+            return (perf[0] <= tuning_budget) and (perf[1] >= (recall_min - TOLERANCE - 1e-5))
+
+        def objective(perf):
+            return float(perf[2])
+
+    else:
+        y_label = "Recall"
+
+        def is_feasible(perf):
+            return (perf[0] <= tuning_budget) and (perf[2] >= (qps_min - TOLERANCE - 1e-5))
+
+        def objective(perf):
+            return float(perf[1])
+
+    return is_feasible, objective, y_label
+
+
+def _oracle_best(results_dict, is_feasible, objective):
+    best = None
+    for _, perf in results_dict.get("brute_force", []):
+        if is_feasible(perf):
+            v = objective(perf)
+            if best is None or v > best:
+                best = v
+    return best
+
+
+def _time_of_reaching_each_y(sol_list, is_feasible, objective, tuning_budget, y_bins=240):
+    """
+    Build an array t_of_y where each y-level (discretized) stores the first time when
+    best_so_far >= y. This produces a vertical gradient that reflects 'how fast'
+    the algorithm reached higher performance levels.
+    """
+    pts = []
+    for _, perf in sol_list:
+        if not is_feasible(perf):
+            continue
+        t = float(perf[0])
+        m = objective(perf)
+        pts.append((t, m))
+
+    if not pts:
+        return None, 0.0
+
+    pts.sort(key=lambda x: x[0])
+
+    # Build improvement segments: (y0, y1, t_reached)
+    segs = []
+    best = 0.0
+    for t, m in pts:
+        if m > best:
+            segs.append((best, m, t))
+            best = m
+
+    if best <= 0.0:
+        return None, 0.0
+
+    # Discretize y and assign time per y-level
+    ys = np.linspace(0.0, best, y_bins, endpoint=False)  # bottom-inclusive
+    t_of_y = np.zeros_like(ys)
+
+    # Default: if somehow not assigned, mark as budget (darkest)
+    t_of_y[:] = float(tuning_budget)
+
+    # Fill using segments (piecewise constant time per y-range)
+    for y0, y1, t in segs:
+        if y1 <= y0:
+            continue
+        mask = (ys >= y0) & (ys < y1)
+        t_of_y[mask] = float(t)
+
+    return t_of_y, best
+
+
+def plot_gradient_bar_with_oracle_on_ax(
+    ax,
+    results_dict,
+    recall_min=None,
+    qps_min=None,
+    tuning_budget=TUNING_BUDGET,
+    cmap_name="Greys",
+    y_bins=240,
+    show_xticklabels=True,
+):
+    """
+    Per subplot:
+      - Bars (oracle excluded): height=best feasible objective.
+      - Bar fill: vertical continuous gradient using t(y)=first time reaching level y.
+      - Oracle: horizontal dashed line.
+    NOTE: No per-subplot colorbar here (do it once per row/figure).
+    """
+    is_feasible, objective, y_label = _feasible_and_objective_factory(recall_min, qps_min, tuning_budget)
+
+    order = ["our_solution", "vd_tuner", "optuna", "nsga", "random_search", "grid_search"]
+    label_map = {
+        "our_solution": "CHAT",
+        "vd_tuner": "VDTuner",
+        "optuna": "Optuna",
+        "nsga": "NSGA-II",
+        "random_search": "Random",
+        "grid_search": "Grid",
+    }
+
+    # Color mapping: early=light, late=dark
+    norm = colors.Normalize(vmin=0.0, vmax=float(tuning_budget))
+    cmap = cm.get_cmap(cmap_name)
+
+    bar_w = 0.75
+    xs = np.arange(len(order))
+
+    max_y = 0.0
+
+    for i, key in enumerate(order):
+        sol_list = results_dict.get(key, [])
+        t_of_y, best = _time_of_reaching_each_y(sol_list, is_feasible, objective, tuning_budget, y_bins=y_bins)
+        max_y = max(max_y, best)
+
+        if t_of_y is None or best <= 0.0:
+            # draw an empty placeholder (optional)
+            ax.bar(i, 0.0, width=bar_w, edgecolor="0.6", facecolor="none", linewidth=0.8)
+            continue
+
+        # Build a (H, 1) image where each pixel row encodes time -> color
+        img = t_of_y.reshape(-1, 1)
+
+        ax.imshow(
+            img,
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+            norm=norm,
+            extent=(i - bar_w / 2.0, i + bar_w / 2.0, 0.0, best),
+            interpolation="nearest",
+            zorder=2,
+        )
+
+        # Optional thin outline for bar boundary
+        ax.plot(
+            [i - bar_w / 2.0, i + bar_w / 2.0, i + bar_w / 2.0, i - bar_w / 2.0, i - bar_w / 2.0],
+            [0.0, 0.0, best, best, 0.0],
+            linewidth=0.6,
+            color="0.4",
+            zorder=3,
+        )
+
+    # Oracle line
+    oracle_val = _oracle_best(results_dict, is_feasible, objective)
+    if oracle_val is not None:
+        max_y = max(max_y, oracle_val)
+        ax.axhline(oracle_val, linestyle="--", linewidth=1.1, color=cm.get_cmap("tab10")(0), label="Oracle", zorder=4)
+
+    ax.set_ylabel(y_label, fontsize=11)
+    ax.set_xlim(-0.6, len(order) - 0.4)
+
+    if max_y > 0:
+        ax.set_ylim(0, max_y * 1.10)
+
+    ax.grid(True, axis="y", alpha=0.25, zorder=1)
+
+    ax.set_xticks(xs)
+    if show_xticklabels:
+        ax.set_xticklabels([label_map.get(k, k) for k in order], rotation=30, ha="right", fontsize=9)
+    else:
+        ax.set_xticklabels([])
+
+    # return scalar mappable so main can create shared colorbars
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    return sm

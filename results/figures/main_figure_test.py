@@ -51,15 +51,18 @@ def main():
     plt.rcParams["axes.unicode_minus"] = False
 
     SOLUTIONS = ["brute_force", "our_solution", "grid_search", "random_search", "vd_tuner", "optuna", "nsga"]
+    SOLUTIONS = ["grid_search"]
     IMPLS = ["hnswlib", "faiss"]
+    IMPLS = ["hnswlib"]
     DATASETS = ["nytimes-256-angular", "glove-100-angular", "sift-128-euclidean", "youtube-1024-angular", "deep1M-256-angular"]
+    DATASETS = ["glove-100-angular"]
     SAMPLING_COUNT = [10]
     RECALL_MINS = [0.95]
     QPS_MIN_KEY = "q75"
 
     tasks = []
     for impl in IMPLS:
-        for metric in ["recall_min", "qps_min"]:
+        for metric in ["recall_min"]:
             for dataset in DATASETS:
                 for sampling_count in SAMPLING_COUNT:
                     if metric == "recall_min":
@@ -70,56 +73,8 @@ def main():
                         tasks.append((impl, dataset, SOLUTIONS, None, qps_min, sampling_count))
 
     results = [get_results(*t) for t in tasks]
-
-    fig, axes = plt.subplots(4, 5, figsize=(22, 10))
-
-    row_sm = [None] * 4
-
-    for idx, (ax, r) in enumerate(zip(axes.flat, results)):
-        sm = plot_gradient_bar_with_oracle_on_ax(
-            ax,
-            results_dict=r["results"],
-            recall_min=r["recall_min"],
-            qps_min=r["qps_min"],
-            tuning_budget=TUNING_BUDGET,
-            cmap_name="Greys",
-            y_bins=260,
-            show_xticklabels=True,
-        )
-        ax.set_title(short_ds(r["dataset"]), fontsize=11)
-        row = idx // 5
-        if row_sm[row] is None:
-            row_sm[row] = sm
-
-    # One colorbar per row
-    for row in range(4):
-        sm = row_sm[row]
-        if sm is None:
-            continue
-        cb = fig.colorbar(sm, ax=axes[row, :], fraction=0.02, pad=0.01)
-        cb.set_label("Time (s)", fontsize=10)
-        cb.ax.tick_params(labelsize=8)
-        cb.set_ticks([0, TUNING_BUDGET / 2, TUNING_BUDGET])
-
-    # Global legend (Oracle only)
-    handles, labels = [], []
-    for ax in axes.flat:
-        h, l = ax.get_legend_handles_labels()
-        handles.extend(h)
-        labels.extend(l)
-    by_label = dict(zip(labels, handles))
-    if "Oracle" in by_label:
-        fig.legend([by_label["Oracle"]], ["Oracle"], loc="upper center", bbox_to_anchor=(0.5, 1.02),
-                   ncol=1, fontsize=14, frameon=False)
-
-    # Row labels
-    fig.text(0.015, 0.78, "hnswlib\n(Recall constraint)", va="center", ha="center", rotation="vertical", fontsize=16)
-    fig.text(0.015, 0.53, "hnswlib\n(QPS constraint)", va="center", ha="center", rotation="vertical", fontsize=16)
-    fig.text(0.015, 0.28, "faiss\n(Recall constraint)", va="center", ha="center", rotation="vertical", fontsize=16)
-    fig.text(0.015, 0.03, "faiss\n(QPS constraint)", va="center", ha="center", rotation="vertical", fontsize=16)
-
-    plt.subplots_adjust(left=0.06, bottom=0.09, top=0.92, wspace=0.35, hspace=0.55)
-    fig.savefig("main_figure.pdf", bbox_inches="tight")
+    for result in results:
+        print(result)
 
 
 if __name__ == "__main__":
