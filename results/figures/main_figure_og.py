@@ -11,8 +11,8 @@ from src.utils import (
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 current_dir = "results/figures"
-MOCK_SEED = 0
 
+MOCK_SEED = "0_cherry"
 
 def get_results(
     impl: str,
@@ -23,17 +23,19 @@ def get_results(
     sampling_count: int = None,
     tuning_time: int = TUNING_BUDGET,
 ):
+    assert (recall_min is not None) != (qps_min is not None), "Either recall_min or qps_min must be specified, but not both."
     results_combi = {}
+    max_perf = None
     for solution in solutions:
         filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
-
         if solution == "brute_force":
             optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
             hp = optimal_hp[0]
             _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
             results = [(hp, perf)]
+            max_perf = perf
         else:
             results = [r for r in results if r[1][0] <= tuning_time]
 
@@ -45,6 +47,7 @@ def get_results(
         "recall_min": recall_min,
         "qps_min": qps_min,
         "results": results_combi,
+        "max_perf": max_perf[2] if recall_min else max_perf[1]
     }
 
 
@@ -237,7 +240,7 @@ def main():
     fig, axes = plt.subplots(4, 5, figsize=(20, 10))
 
     for ax, result in zip(axes.flat, results):
-        plot_accumulated_timestamp_on_ax(ax, result["results"], result["recall_min"], result["qps_min"])
+        plot_accumulated_timestamp_on_ax(ax, result["results"], result["recall_min"], result["qps_min"], max_perf=result["max_perf"])
 
     handles, labels = [], []
     for ax in axes.flat:

@@ -59,7 +59,7 @@ class HyperparameterTuner:
             self.__log(f"\n--- Starting Exploitation Phase (Remaining Budget: {remaining_budget:.2f}s) ---", 1)
             self.results.append(((0, 0, 0), (self.ground_truth.tuning_time, 0.0, 0.0, 0.0, 0.0, 0)))  # Add dummy result for stats
             self._exploitation_phase()
-        self.stats.exploitation_phase(self.results)
+            self.stats.exploitation_phase(self.results)
         print_optimal_hyperparameters(self.results, recall_min=self.recall_min, qps_min=self.qps_min)
         self.__log("\n--- Tuning is Done! ---", 1)
         return self.results
@@ -296,8 +296,8 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
 def run_recall_min_experiments():    
     for RECALL_MIN in [0.95]:
     # for RECALL_MIN in [0.90, 0.925, 0.95, 0.975, 0.99]:
-        for IMPL in ["faiss", "hnswlib"]:
-        # for IMPL in ["hnswlib"]:
+        # for IMPL in ["faiss", "hnswlib"]:
+        for IMPL in ["faiss"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", 
             #                 "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
             # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "youtube-1024-angular"]:
@@ -314,12 +314,12 @@ def run_recall_min_experiments():
                     recall_min=RECALL_MIN, tuning_budget=TUNING_BUDGET, lite=True)
 
 def run_qps_min_experiments():
-    for QPS_MIN in [29225]:
+    for QPS_MIN in [24039]:
         for IMPL in ["faiss"]:
-            for DATASET in ["nytimes-256-angular"]:
-            # for DATASET in ["dbpediaentity-768-angular"]:
+            # for DATASET in ["nytimes-256-angular"]:
+            for DATASET in ["deep1M-256-angular"]:
                 print(f"Running for {IMPL} on {DATASET} with QPS_MIN={QPS_MIN}")
-                results = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
+                results, stat, efS_stat = run(IMPL, DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET, stats=True)
                 for result in results:
                     if result[1][2] < QPS_MIN:
                         continue
@@ -329,8 +329,11 @@ def run_qps_min_experiments():
                 postprocess_results(
                     results, solution="test_solution", impl=IMPL, dataset=DATASET, 
                     qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET, lite=True)
+                print(stat.results[0])
+                print(f"{stat.stats['exploration_time']}")
+                print(stat.results[1])
 
 # The rest of your main script (run_recall_min_experiments, run_qps_min_experiments, etc.) remains the same.
 if __name__ == "__main__":
-    run_recall_min_experiments()
-    # run_qps_min_experiments()
+    # run_recall_min_experiments()
+    run_qps_min_experiments()

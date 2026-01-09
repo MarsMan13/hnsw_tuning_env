@@ -8,34 +8,25 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 current_dir = "results/figures"
 
 MOCK_SEED = 0
-def get_results(
-    impl: str,
-    dataset: str,
-    solutions: list,
-    recall_min: float = None,
-    qps_min: int = None,
-    sampling_count: int = None,
-    tuning_time: int = TUNING_BUDGET,
-):
-
+def get_results(impl, dataset, solutions, recall_min=None, qps_min=None, sampling_count=None, tuning_time=TUNING_BUDGET):
+    assert (recall_min is not None) != (qps_min is not None)
     results_combi = {}
-    #* 1. Load results for all solutions under the given condition
+    oracle_best_metric = None
+
     for solution in solutions:
-        filename = filename_builder(
-            solution, impl, dataset, recall_min, qps_min
-        )
+        filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
         results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+
         if solution == "brute_force":
-            optimal_hp = get_optimal_hyperparameter(
-                results, recall_min=recall_min, qps_min=qps_min
-            )
+            optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
             hp = optimal_hp[0]
             _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
-            optimal_hp = (hp, perf)
-            results = [optimal_hp]  # For brute_force, we only keep the optimal hyperparameter
+            results = [(hp, perf)]
+            oracle_best_metric = qps if recall_min is not None else recall
         else:
-            results = [result for result in results if result[1][0] <= tuning_time]  # Filter results by tuning time
+            results = [r for r in results if r[1][0] <= tuning_time]
+
         results_combi[solution] = results
 
     return {
@@ -43,9 +34,9 @@ def get_results(
         "dataset": dataset,
         "recall_min": recall_min,
         "qps_min": qps_min,
-        "results":results_combi
+        "results": results_combi,
+        "oracle_best_metric": oracle_best_metric,
     }
-
 # FILE: main.py
 
 def main():
@@ -112,7 +103,7 @@ def main():
     # Plot data on each subplot
     for ax, result in zip(axes.flat, results):
         plot_accumulated_timestamp_on_ax(
-            ax, result["results"], result["recall_min"], result["qps_min"]
+            ax, result["results"], result["recall_min"], result["qps_min"], result["oracle_best_metric"]
         )
 
     # 1. Gather unique handles and labels for the main legend

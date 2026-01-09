@@ -13,16 +13,10 @@ current_dir = "results/figures"
 MOCK_SEED = 100
 
 
-def get_results(
-    impl: str,
-    dataset: str,
-    solutions: list,
-    recall_min: float = None,
-    qps_min: int = None,
-    sampling_count: int = None,
-    tuning_time: int = TUNING_BUDGET,
-):
+def get_results(impl, dataset, solutions, recall_min=None, qps_min=None, sampling_count=None, tuning_time=TUNING_BUDGET):
+    assert (recall_min is not None) != (qps_min is not None)
     results_combi = {}
+    oracle_best_metric = None
 
     for solution in solutions:
         filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
@@ -34,6 +28,7 @@ def get_results(
             _tt, recall, qps, total_time, build_time, index_size = optimal_hp[1]
             perf = (0.0, recall, qps, total_time, build_time, index_size)
             results = [(hp, perf)]
+            oracle_best_metric = qps if recall_min is not None else recall
         else:
             results = [r for r in results if r[1][0] <= tuning_time]
 
@@ -45,6 +40,7 @@ def get_results(
         "recall_min": recall_min,
         "qps_min": qps_min,
         "results": results_combi,
+        "oracle_best_metric": oracle_best_metric,
     }
 
 def plot_results(results_left, results_right):
@@ -77,12 +73,14 @@ def plot_results(results_left, results_right):
         results_left["results"],
         results_left["recall_min"],
         results_left["qps_min"],
+        results_left["oracle_best_metric"],
     )
     plot_accumulated_timestamp_on_ax(
         axes[1],
         results_right["results"],
         results_right["recall_min"],
         results_right["qps_min"],
+        results_left["oracle_best_metric"],
     )
 
     # Optional: panel titles (remove if you don't want them)
@@ -121,7 +119,7 @@ def plot_results(results_left, results_right):
     )
     # Layout: reserve top space for legend
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.92])
-    fig.savefig(f"milvus_nytimes_{SEED}.pdf", bbox_inches="tight")
+    fig.savefig(f"milvus_nytimes_{MOCK_SEED}.pdf", bbox_inches="tight")
     plt.show()
 
 def best_feasible_perf_until(results_dict, solution_key, until_time=TUNING_BUDGET):

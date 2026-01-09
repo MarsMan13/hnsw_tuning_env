@@ -14,7 +14,7 @@ SEED = 42
 ALLOWED_M = {i for i in range(8, 65, 4)}  # 8,12,...,64
 
 # efC interpolation range (integer grid)
-EFC_MIN, EFC_MAX = 10, 1024
+EFC_MIN, EFC_MAX = 10, 576
 EFC_GRID = np.arange(EFC_MIN, EFC_MAX + 1, dtype=int)
 
 def masked_gaussian_filter2d(matrix: np.ndarray, sigma_m: float, sigma_efc: float) -> np.ndarray:
@@ -269,15 +269,15 @@ def plot_two_constraints_side_by_side(
         plt.show()
 
 def main():
-    RECALL_MIN = 0.925
-    QPS_MIN = 60000 
+    RECALL_MIN = 0.85
+    QPS_MIN = 90000 
     # hnswlib
     DATASETS = [
-        "nytimes-256-angular-100p-hnswlib-random",
+        "nytimes-256-angular-100p-hnswlib",
         # "nytimes-256-angular-50p",
-        "nytimes-256-angular-10p-hnswlib-random",
+        "nytimes-256-angular-10p-hnswlib",
         # "nytimes-256-angular-5p",
-        "nytimes-256-angular-1p-hnswlib-random",
+        "nytimes-256-angular-5p-hnswlib",
     ]
 
     plot_two_constraints_side_by_side(
@@ -287,10 +287,10 @@ def main():
         recall_min=RECALL_MIN,
         qps_min=QPS_MIN,
         sampling_count=10,
-        sigma_m_left=5,
-        sigma_efc_left=5,
-        sigma_m_right=5,
-        sigma_efc_right=5,
+        sigma_m_left=2,
+        sigma_efc_left=2.5,
+        sigma_m_right=2,
+        sigma_efc_right=3,
         out_path="local_optima_efC_M_two_constraints_smoothed_hnswlib.png",
     )
 

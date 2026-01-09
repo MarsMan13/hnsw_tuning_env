@@ -1,15 +1,12 @@
-import matplotlib
-matplotlib.use("Agg")
-
+import os
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
 from src.constants import TUNING_BUDGET
 from src.utils import (
     filename_builder,
     get_optimal_hyperparameter,
     load_search_results,
-    plot_gradient_bar_with_oracle_on_ax,
+    plot_accumulated_timestamp_on_ax,
 )
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
@@ -42,16 +39,9 @@ def get_results(impl, dataset, solutions, recall_min=None, qps_min=None, samplin
 
 
 def main():
-    # Font
-    font_path = f"{current_dir}/LinLibertine_R.ttf"
-    if font_path not in [f.fname for f in fm.fontManager.ttflist]:
-        fm.fontManager.addfont(font_path)
-    font_name = fm.FontProperties(fname=font_path).get_name()
-    plt.rcParams["font.family"] = font_name
-    plt.rcParams["axes.unicode_minus"] = False
 
     SOLUTIONS = ["brute_force", "our_solution", "grid_search", "random_search", "vd_tuner", "optuna", "nsga"]
-    SOLUTIONS = ["grid_search"]
+    SOLUTIONS = ["grid_search",]
     IMPLS = ["hnswlib", "faiss"]
     IMPLS = ["hnswlib"]
     DATASETS = ["nytimes-256-angular", "glove-100-angular", "sift-128-euclidean", "youtube-1024-angular", "deep1M-256-angular"]
@@ -73,8 +63,10 @@ def main():
                         tasks.append((impl, dataset, SOLUTIONS, None, qps_min, sampling_count))
 
     results = [get_results(*t) for t in tasks]
-    for result in results:
-        print(result)
+    fig, axes = plt.subplots(4, 5, figsize=(20, 10))
+
+    for ax, result in zip(axes.flat, results):
+        plot_accumulated_timestamp_on_ax(ax, result["results"], result["recall_min"], result["qps_min"])
 
 
 if __name__ == "__main__":

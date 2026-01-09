@@ -24,19 +24,21 @@ if __name__ == "__main__":
         # "nytimes-256-angular-50p",
         # "nytimes-256-angular-10p",
         # "nytimes-256-angular-5p",
-        "nytimes-256-angular-10p-hnswlib",
-        "nytimes-256-angular-100p-hnswlib",
+        "nytimes-256-angular-1p",
+        # "nytimes-256-angular-1p-hnswlib-random",
+        # "nytimes-256-angular-10p-hnswlib-random",
+        # "nytimes-256-angular-100p-hnswlib-random",
     ]
     SOLUTIONS = [
         (brute_force, "brute_force"),
     ]
     RECALL_MINS = [
-        0.85,
-        0.875,
+        # 0.85,
+        # 0.875,
         0.90,
         0.925,
         0.95,
-        0.975,
+        # 0.975,
         # 0.99,
     ]
     SAMPLING_COUNT = [
@@ -53,7 +55,7 @@ if __name__ == "__main__":
     for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
         IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
     ):
-        for qps_min in (10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 82500, 85000, 87500, 90000, 92500, 95000, 97500, 100000, 110000, 120000, 1300000, 1400000, 150000):
+        for qps_min in (30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000):
         # for qps_min in get_qps_metrics_dataset(impl, dataset):
             tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
     run_experiments(tasks=tasks)

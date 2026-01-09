@@ -11,17 +11,8 @@ from src.utils import (filename_builder, get_optimal_hyperparameter, load_search
 )
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
-# def process_file():
-#     SOLUTION = "vd_tuner"
-#     FILENAME = "vd_tuner_hnswlib_nytimes-256-angular_8h_False_3.csv"
-#     TUNING_BUDGET = 3600 * 8
-#     RECALL_MIN = 0.95
-#     results = load_search_results(SOLUTION, FILENAME)
-#     _FILENAME = FILENAME.split(".csv")[0]
-#     plot_timestamp(results, SOLUTION, f"{_FILENAME}_timestamp_plot.png", recall_min=RECALL_MIN)
-#     plot_searched_points_3d(results, SOLUTION, f"{_FILENAME}_searched_points_3d.png", recall_min=RECALL_MIN)
+MOCK_SEED = "0_main"
 
-MOCK_SEED = 0
 def _process_single_metric(
     impl: str,
     dataset: str,
@@ -144,13 +135,6 @@ def main():
         "random_search",
         "vd_tuner",
         "optuna",
-        # "test_solution",
-        # "grid_search_heuristic",
-        # "random_search_heuristic",
-        # "1_tests",
-        # "3_tests",
-        # "5_tests",
-        # "10_tests",
     ]
     IMPLS = [
         "faiss",
@@ -162,7 +146,7 @@ def main():
         "glove-100-angular",
         "sift-128-euclidean",
         "youtube-1024-angular",
-        # "deep1M-256-angular",
+        "deep1M-256-angular",
     ]
     SAMPLING_COUNT = [
         10,
@@ -170,7 +154,13 @@ def main():
         3,
         5,
     ]
-    RECALL_MINS = [0.90, 0.925, 0.95, 0.975, 0.99]
+    RECALL_MINS = [
+        0.90, 
+        0.925, 
+        0.95, 
+        0.975, 
+        0.99
+    ]
     # --- Start of multiprocessing modification ---
 
     #* 1. Create a list to hold all the tasks to be executed.
@@ -203,7 +193,7 @@ def main():
     # It's recommended to use a number of processes equal to the number of CPU cores.
     try:
         # Use all available CPU cores, or specify a number.
-        num_processes = 12 if multiprocessing.cpu_count() <= 16 else multiprocessing.cpu_count() - 12
+        num_processes = multiprocessing.cpu_count() - 1 if multiprocessing.cpu_count() > 1 else 1
         print(f"Creating a pool of {num_processes} worker processes for {len(tasks)} tasks.")
         # 'with' statement ensures the pool is properly closed after use.
         with multiprocessing.Pool(processes=num_processes) as pool:

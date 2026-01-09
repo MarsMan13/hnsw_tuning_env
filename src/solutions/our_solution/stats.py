@@ -12,8 +12,10 @@ class Stats:
         self.qps_min = qps_min
         self.get_perf = lambda hp_perf: hp_perf[1][2] if recall_min is not None else hp_perf[1][1]
         self.stats = {}
+        self.results = ([], [])
     
     def exploration_phase(self, results:list):
+        self.results[0].extend(results)
         self.stats["exploration_time"] = results[-1][1][0]
         self.stats["exploration_ratio"] = results[-1][1][0] / self.tuning_budget
         opt_hp, _ = print_optimal_hyperparameters(results, recall_min=self.recall_min, qps_min=self.qps_min)
@@ -24,6 +26,7 @@ class Stats:
 
     def exploitation_phase(self, results:list):
         assert self.stats.get("exploration_time") is not None, "Exploration phase must be completed before exploitation phase."
+        self.results[1].extend(results)
         self.stats["exploitation_time"] = results[-1][1][0] - self.stats["exploration_time"]
         self.stats["exploitation_ratio"] = results[-1][1][0] / self.tuning_budget
         self.stats["tuning_time"] = self.stats["exploration_time"] + self.stats["exploitation_time"]

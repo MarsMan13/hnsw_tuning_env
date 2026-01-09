@@ -63,7 +63,7 @@ def load_search_results(solution, filename, seed=SEED, sampling_count=MAX_SAMPLI
             index_size = int(float(row[8]))
             results.append(((M, efC, efS), (T_record, recall, qps, total_time, build_time, index_size)))
     return results
-    
+
 def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
     
@@ -88,7 +88,6 @@ def get_optimal_hyperparameter(results, recall_min=None, qps_min=None):
                     round(float(tuning_time), 2), round(float(recall), 3), round(float(qps), 2),
                     round(float(total_time), 2), round(float(build_time), 2), int(index_size)
                 ))
-
     return optimal_hyperparameters
 
 def get_local_optimal_hyperparameter(results, recall_min=None, qps_min=None):
@@ -160,6 +159,7 @@ def plot_accumulated_timestamp_on_ax(
     results,
     recall_min=None,
     qps_min=None,
+    max_perf = None,
     tuning_budget=TUNING_BUDGET,
 ):
     """
@@ -202,17 +202,16 @@ def plot_accumulated_timestamp_on_ax(
     for solution, result in results.items():
         if recall_min:
             filtered = [
-                (value[0], value[2])  # (T_record, qps)
+                (value[0], value[2] if max_perf >= value[2] else max_perf)  # (T_record, qps)
                 for _, value in result
                 if value[1] >= recall_min
             ]
         elif qps_min:
             filtered = [
-                (value[0], value[1])  # (T_record, recall)
+                (value[0], value[1] if max_perf >= value[1] else max_perf)  # (T_record, recall)
                 for _, value in result
                 if value[2] >= qps_min
             ]
-
         if not filtered:
             continue
 
@@ -245,26 +244,6 @@ def plot_accumulated_timestamp_on_ax(
             linewidth=1.0,
             markersize=3 if solution == "grid_search" else 4
         )
-        # if solution == "grid_search":
-        #     ax.plot(
-        #         timestamps,
-        #         perf_values,
-        #         marker=markers[solution],
-        #         color=colors[solution],
-        #         label=_label,
-        #         linewidth=1.0,
-        #         markersize=4  # For grid_search only, make it smaller
-        #     )
-        # else:
-        #     ax.plot(
-        #         timestamps,
-        #         perf_values,
-        #         marker=markers[solution],
-        #         color=colors[solution],
-        #         label=_label,
-        #         linewidth=1.0,
-        #         markersize=8  # Default size for others
-        #     )
 
     ax.set_xlabel("Time (seconds)", fontsize=14)
     ax.set_ylabel("QPS" if recall_min else "Recall", fontsize=14)
@@ -461,13 +440,13 @@ def plot_timestamp(results, solution, filename, recall_min=None, qps_min=None, t
         filtered_results = [
             (value[0], value[2])  # T_record, qps
             for _, value in results
-            if value[1] >= recall_min and value[0] <= tuning_budget
+                if value[1] >= recall_min and value[0] <= tuning_budget
         ]
     if qps_min:
         filtered_results = [
             (value[0], value[1])
             for _, value in results
-            if value[2] >= qps_min and value[0] <= tuning_budget
+                if value[2] >= qps_min and value[0] <= tuning_budget
         ]
     # filtered_results.append((tuning_budget, 0))  # Add a point at the end of the tuning budget
     if not filtered_results:
@@ -635,7 +614,7 @@ from matplotlib import cm, colors
 from src.constants import TUNING_BUDGET, TOLERANCE
 
 
-def _feasible_and_objective_factory(recall_min, qps_min, tuning_budget):
+def _feasible_and_objective_factory(recall_min, qps_min, tuning_budget, max_perf):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
 
     if recall_min is not None:
@@ -646,7 +625,7 @@ def _feasible_and_objective_factory(recall_min, qps_min, tuning_budget):
             return (perf[0] <= tuning_budget) and (perf[1] >= (recall_min - TOLERANCE - 1e-5))
 
         def objective(perf):
-            return float(perf[2])
+            return float(perf[2] if max_perf >= perf[2] else max_perf)
 
     else:
         y_label = "Recall"
@@ -655,7 +634,7 @@ def _feasible_and_objective_factory(recall_min, qps_min, tuning_budget):
             return (perf[0] <= tuning_budget) and (perf[2] >= (qps_min - TOLERANCE - 1e-5))
 
         def objective(perf):
-            return float(perf[1])
+            return float(perf[1] if max_perf >= perf[1] else max_perf)
 
     return is_feasible, objective, y_label
 
@@ -717,16 +696,117 @@ def _time_of_reaching_each_y(sol_list, is_feasible, objective, tuning_budget, y_
     return t_of_y, best
 
 
+# def plot_gradient_bar_with_oracle_on_ax(
+#     ax,
+#     results_dict,
+#     recall_min=None,
+#     qps_min=None,
+#     tuning_budget=TUNING_BUDGET,
+#     max_perf=None,
+#     cmap_name="Greys",
+#     y_bins=240,
+#     show_xticklabels=True,
+#     row=0,
+# ): 
+#     """
+#     Per subplot:
+#       - Bars (oracle excluded): height=best feasible objective.
+#       - Bar fill: vertical continuous gradient using t(y)=first time reaching level y.
+#       - Oracle: horizontal dashed line.
+#     NOTE: No per-subplot colorbar here (do it once per row/figure).
+#     """
+#     is_feasible, objective, y_label = _feasible_and_objective_factory(recall_min, qps_min, tuning_budget, max_perf)
+
+#     order = ["our_solution", "vd_tuner", "optuna", "nsga", "random_search", "grid_search"]
+#     label_map = {
+#         "our_solution": "CHAT",
+#         "vd_tuner": "VDTuner",
+#         "optuna": "Optuna",
+#         "nsga": "NSGA-II",
+#         "random_search": "Random",
+#         "grid_search": "Grid",
+#     }
+
+#     # Color mapping: early=light, late=dark
+#     norm = colors.Normalize(vmin=0.0, vmax=float(tuning_budget))
+#     cmap = cm.get_cmap(cmap_name)
+
+#     bar_w = 0.75
+#     xs = np.arange(len(order))
+
+#     max_y = 0.0
+
+#     for i, key in enumerate(order):
+#         sol_list = results_dict.get(key, [])
+#         t_of_y, best = _time_of_reaching_each_y(sol_list, is_feasible, objective, tuning_budget, y_bins=y_bins)
+#         max_y = max(max_y, best)
+
+#         if t_of_y is None or best <= 0.0:
+#             # draw an empty placeholder (optional)
+#             ax.bar(i, 0.0, width=bar_w, edgecolor="0.6", facecolor="none", linewidth=0.8)
+#             continue
+
+#         # Build a (H, 1) image where each pixel row encodes time -> color
+#         img = t_of_y.reshape(-1, 1)
+
+#         ax.imshow(
+#             img,
+#             origin="lower",
+#             aspect="auto",
+#             cmap=cmap,
+#             norm=norm,
+#             extent=(i - bar_w / 2.0, i + bar_w / 2.0, 0.0, best),
+#             interpolation="nearest",
+#             zorder=2,
+#         )
+
+#         # Optional thin outline for bar boundary
+#         ax.plot(
+#             [i - bar_w / 2.0, i + bar_w / 2.0, i + bar_w / 2.0, i - bar_w / 2.0, i - bar_w / 2.0],
+#             [0.0, 0.0, best, best, 0.0],
+#             linewidth=0.6,
+#             color="0.4",
+#             zorder=3,
+#         )
+
+#     # Oracle line
+#     oracle_val = _oracle_best(results_dict, is_feasible, objective)
+#     if oracle_val is not None:
+#         max_y = max(max_y, oracle_val)
+#         ax.axhline(oracle_val, linestyle="--", linewidth=1.1, color=cm.get_cmap("tab10")(0), label="Oracle", zorder=4)
+
+#     # ax.set_ylabel(y_label, fontsize=11)
+#     ax.set_xlim(-0.6, len(order) - 0.4)
+
+#     if max_y > 0:
+#         ax.set_ylim(0, max_y * 1.10)
+
+#     ax.grid(True, axis="y", alpha=0.25, zorder=1)
+
+#     ax.set_xticks(xs)
+#     # if show_xticklabels and row == 3:
+#     if show_xticklabels:
+#         ax.set_xticklabels([label_map.get(k, k) for k in order], rotation=30, ha="right", fontsize=9)
+#     else:
+#         ax.set_xticklabels([])
+
+#     # return scalar mappable so main can create shared colorbars
+#     sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+#     sm.set_array([])
+#     return sm
+
 def plot_gradient_bar_with_oracle_on_ax(
     ax,
     results_dict,
     recall_min=None,
     qps_min=None,
     tuning_budget=TUNING_BUDGET,
+    max_perf=None,
     cmap_name="Greys",
     y_bins=240,
     show_xticklabels=True,
-):
+    row=0,
+): 
     """
     Per subplot:
       - Bars (oracle excluded): height=best feasible objective.
@@ -734,7 +814,7 @@ def plot_gradient_bar_with_oracle_on_ax(
       - Oracle: horizontal dashed line.
     NOTE: No per-subplot colorbar here (do it once per row/figure).
     """
-    is_feasible, objective, y_label = _feasible_and_objective_factory(recall_min, qps_min, tuning_budget)
+    is_feasible, objective, y_label = _feasible_and_objective_factory(recall_min, qps_min, tuning_budget, max_perf)
 
     order = ["our_solution", "vd_tuner", "optuna", "nsga", "random_search", "grid_search"]
     label_map = {
@@ -794,10 +874,24 @@ def plot_gradient_bar_with_oracle_on_ax(
         max_y = max(max_y, oracle_val)
         ax.axhline(oracle_val, linestyle="--", linewidth=1.1, color=cm.get_cmap("tab10")(0), label="Oracle", zorder=4)
 
-    ax.set_ylabel(y_label, fontsize=11)
+        # --- [Modified] Start: Set exactly 5 ticks from 0 to Oracle ---
+        if oracle_val > 0:
+            # 0부터 oracle_val까지 정확히 5개의 구간으로 나눔 (0, 0.25*O, 0.5*O, 0.75*O, O)
+            custom_ticks = np.linspace(0, oracle_val, 5)
+            ax.set_yticks(custom_ticks)
+            
+            # (선택 사항) Tick Label 포맷팅: 값이 너무 지저분하게 나오면 포맷터 적용 가능
+            # 예: 정수만 필요한 경우
+            from matplotlib.ticker import FormatStrFormatter
+            if oracle_val > 100: ax.yaxis.set_major_formatter(FormatStrFormatter('%.0f'))
+            else: ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+        # --- [Modified] End ---
+
+    # ax.set_ylabel(y_label, fontsize=11)
     ax.set_xlim(-0.6, len(order) - 0.4)
 
     if max_y > 0:
+        # Oracle 선보다 조금 더 위에 여백을 주어 마지막 틱(Oracle 점)이 잘리지 않게 함
         ax.set_ylim(0, max_y * 1.10)
 
     ax.grid(True, axis="y", alpha=0.25, zorder=1)
@@ -812,3 +906,20 @@ def plot_gradient_bar_with_oracle_on_ax(
     sm = cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     return sm
+
+# ================= utils.py (Add this function) =================
+
+def get_best_perf_at_time(sol_list, is_feasible, objective, time_limit):
+    """
+    Filter results within time_limit and return the best objective value found.
+    If no feasible result is found, return 0.0.
+    """
+    valid_perfs = [
+        objective(perf) 
+        for _, perf in sol_list 
+        if is_feasible(perf) and perf[0] <= time_limit
+    ]
+    
+    if not valid_perfs:
+        return 0.0
+    return max(valid_perfs)

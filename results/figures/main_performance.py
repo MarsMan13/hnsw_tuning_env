@@ -2,6 +2,8 @@ from src.utils import load_search_results
 from src.solutions import print_optimal_hyperparameters
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
+MOCK_SEED = "0_cherry"
+
 def worker(params):
     impl, dataset, solution, recall_min, qps_min, time = params
     get_perf = lambda x: int(x[1][2]) if recall_min else round(x[1][1],4)  # Recall or QPS
@@ -10,7 +12,7 @@ def worker(params):
             filename = f"{solution}_{impl}_{dataset}_{recall_min}r_{None}q.csv"
         else:
             filename = f"{solution}_{impl}_{dataset}_{None}r_{qps_min}q.csv"
-        results = load_search_results(solution, filename)
+        results = load_search_results(solution, filename, seed=MOCK_SEED)
         if solution != "brute_force":
             results = [result for result in results if result[1][0] <= time * 3600]  # Filter by tuning time
         if not results:

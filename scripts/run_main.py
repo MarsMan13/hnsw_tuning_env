@@ -25,14 +25,14 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 if __name__ == "__main__":
     IMPLS = [
         "hnswlib",
-        "faiss",
+        # "faiss",
     ]
     DATASETS = [
         "nytimes-256-angular",
-        "glove-100-angular",
-        "sift-128-euclidean",
-        "deep1M-256-angular",
-        "youtube-1024-angular",
+        # "glove-100-angular",
+        # "sift-128-euclidean",
+        # "deep1M-256-angular",
+        # "youtube-1024-angular",
         # "msmarco-384-angular",
         # "dbpediaentity-768-angular",
     ]
@@ -40,15 +40,15 @@ if __name__ == "__main__":
         # (brute_force, "brute_force"),
         # (grid_search, "grid_search"),
         # (random_search, "random_search"),
-        # (optuna, "optuna"),
+        (optuna, "optuna"),
         # (nsga, "nsga"),
-        (vd_tuner, "vd_tuner"),
+        # (vd_tuner, "vd_tuner"),
         # (our_solution, "our_solution"),
     ]
     RECALL_MINS = [
         # 0.90,
         # 0.925,
-        # 0.95,
+        0.95,
         # 0.975,
         # 0.99,
     ]
@@ -66,9 +66,9 @@ if __name__ == "__main__":
     ):
         tasks.append((impl, dataset, solution_func, solution_name, recall_min, None, sampling_count))
     # Case 2: when qps_min is active
-    for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
-        IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
-    ):
-        for qps_min in get_qps_metrics_dataset(impl, dataset):
-            tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
+    # for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
+    #     IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
+    # ):
+    #     for qps_min in get_qps_metrics_dataset(impl, dataset):
+    #         tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
     run_experiments(tasks=tasks, num_cores=64)
