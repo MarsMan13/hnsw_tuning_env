@@ -41,26 +41,3 @@ def run(impl=IMPL, dataset=DATASET, recall_min=None, qps_min=None, tuning_budget
             raise ValueError(f"Recall or QPS mismatch: {recall}/{_recall}, {qps}/{_qps}")
         results.append(((M, efC, efS), (env.T_record[i], recall, qps, total_time, build_time, index_size)))
     return results
-
-def recall_min():    
-    # for RECALL_MIN in [0.90, 0.95, 0.975]:
-    for RECALL_MIN in [0.90]:
-        # for IMPL in ["hnswlib", "faiss"]:
-        for IMPL in ["hnswlib"]:
-            # for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-            for DATASET in ["glove-100-angular"]:
-                results = run(IMPL, DATASET, RECALL_MIN, None, TUNING_BUDGET, search_efS=True)
-                print_optimal_hyperparameters(results, recall_min=RECALL_MIN)
-                # postprocess_results(results, solution="vd_tuner", impl=IMPL, dataset=DATASET, recall_min=RECALL_MIN, qps_min=None, tuning_budget=TUNING_BUDGET)
-                
-def qps_min():
-    for QPS_MIN in [2500, 5000, 10000, 25000]:
-        for IMPL in ["hnswlib", "faiss"]:
-            for DATASET in ["nytimes-256-angular", "sift-128-euclidean", "glove-100-angular", "dbpediaentity-768-angular", "msmarco-384-angular", "youtube-1024-angular"]:
-                results = run(IMPL, DATASET, None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET, search_efS=True)
-                print_optimal_hyperparameters(results, qps_min=QPS_MIN)
-                # postprocess_results(results, solution="vd_tuner", impl=IMPL, dataset=DATASET, recall_min=None, qps_min=QPS_MIN, tuning_budget=TUNING_BUDGET)
-
-if __name__ == "__main__":
-    recall_min()
-    # qps_min()
