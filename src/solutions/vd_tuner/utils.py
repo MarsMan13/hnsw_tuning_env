@@ -12,8 +12,8 @@ import subprocess as sp
 import random
 # from configure import *
 
-KNOB_PATH = r'/home/prof_do/vd_tuner/VDTuner/auto-configure/vdtuner/dev/whole_param.json'
-RUN_ENGINE_PATH = r'/home/prof_do/vd_tuner/VDTuner/vector-db-benchmark-master/run_engine.sh'
+KNOB_PATH = r'/home/vd_tuner/VDTuner/auto-configure/vdtuner/dev/whole_param.json'
+RUN_ENGINE_PATH = r'/home/vd_tuner/VDTuner/vector-db-benchmark-master/run_engine.sh'
 
 class KnobStand:
     def __init__(self, path) -> None:
