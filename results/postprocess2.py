@@ -51,17 +51,17 @@ def main():
         # "optuna",
     ]
     IMPLS = [
-        # "faiss",
-        "hnswlib",
+        "faiss",
+        # "hnswlib",
         # "milvus",
     ]
     DATASETS = [
         # "nytimes-256-angular",
         # "glove-100-angular",
         # "sift-128-euclidean",
-        # "youtube-1024-angular",
+        "youtube-1024-angular",
         # "deep1M-256-angular",
-        "nytimes-256-angular-100p-hnswlib-random",
+        # "nytimes-256-angular-100p-hnswlib-random",
     ]
     SAMPLING_COUNT = [
         # 1,
@@ -72,7 +72,7 @@ def main():
     RECALL_MINS = [
         # 0.90, 
         # 0.925, 
-        # 0.95, 
+        0.95, 
         # 0.975, 
         # 0.99
     ]

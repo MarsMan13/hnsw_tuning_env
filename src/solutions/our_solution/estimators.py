@@ -5,6 +5,20 @@ from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 
+DATA_SPECS = {
+    "nytimes": {"N": 290_000, "d": 256, "encoding": "angular"},
+    "glove":   {"N": 1_183_514, "d": 100, "encoding": "angular"},
+    "sift":    {"N": 1_000_000, "d": 128, "encoding": "euclidean"},
+    "youtube": {"N": 990_072, "d": 1024, "encoding": "angular"},
+    "deep1M":  {"N": 1_000_000, "d": 256, "encoding": "angular"},
+}
+
+def get_data_spec(dataset: str):
+    for key in DATA_SPECS:
+        if key in dataset:
+            spec = DATA_SPECS[key]
+            return spec["N"], spec["d"]
+    raise ValueError(f"Spec not found for dataset: {dataset}")
 
 class BuildTimeEstimator:
     """Online model of HNSW *build time* as a function of (efC, M).
@@ -18,14 +32,16 @@ class BuildTimeEstimator:
     discarding promising hyper-parameter points too early.
     """
 
-    def __init__(self, *, smooth: bool = False, sigma: float = 10.0,
+    def __init__(self, threshold, *, smooth: bool = False, sigma: float = 10.0,
                  margin: float = 0.0) -> None:
         if smooth and sigma <= 0:
             raise ValueError("`sigma` must be positive when smoothing is enabled.")
         self.smooth = smooth
         self.sigma = sigma
         self.margin = margin
+        self.threshold = threshold
 
+        self._update_count = 0
         self.df: pd.DataFrame = pd.DataFrame(columns=["efC", "M", "BuildTime"])
         self.params: Optional[np.ndarray] = None  # alpha, beta, g₀, g₁, delta
 
@@ -41,9 +57,13 @@ class BuildTimeEstimator:
             self.df["BuildTime"] = gaussian_filter(
                 self.df["BuildTime"].to_numpy(dtype=float), sigma=self.sigma
             )
-
-        if len(self.df) >= 5:
-            self._fit_model()
+        if len(self.df) == 5 or len(self.df) % 8 == 0:
+            if len(self.df) != 0:
+                self._fit_model()
+        self._update_count += 1
+        if build_time > self.threshold:
+            print(f"{build_time} > {self.threshold} @@@@@@@@@@@@@@@@@@@@@@")
+        return build_time <= self.threshold
 
     # ------------------------------------------------------------------
     # prediction helpers
@@ -69,14 +89,16 @@ class BuildTimeEstimator:
     # ------------------------------------------------------------------
     # binary decision
     # ------------------------------------------------------------------
-    def binary_classification(self, efC: float, M: float, *,
-                              threshold: float, safe_side: str = "below") -> bool:
+    def binary_classification(self, efC: float, M: float, *, safe_side: str = "below") -> bool:
         """True ⟹ prediction is inside *safe* region w.r.t. ``threshold``."""
+        if self._update_count <= 4:    
+            return True
         pred = self.estimate(efC, M)
+        print(f"pred : {pred} vs thres : {self.threshold}")
         if safe_side == "below":
-            return pred <= threshold
+            return pred <= self.threshold
         elif safe_side == "above":
-            return pred >= threshold
+            return pred >= self.threshold
         raise ValueError("safe_side must be 'below' or 'above'.")
 
     # ------------------------------------------------------------------
@@ -225,7 +247,7 @@ class BuildTimeEstimator:
 class IndexSizeEstimator:
     """Online model of HNSW *index size* as a function of (efC, M)."""
 
-    def __init__(self, *, N: int, d: int, smooth: bool = False, sigma: float = 10.0,
+    def __init__(self, *, N: int, d: int, threshold, smooth: bool = False, sigma: float = 10.0,
                  margin: float = 0.0) -> None:
         if smooth and sigma <= 0:
             raise ValueError("`sigma` must be positive when smoothing is enabled.")
@@ -233,10 +255,12 @@ class IndexSizeEstimator:
         self.smooth = smooth
         self.sigma = sigma
         self.margin = margin
+        self.threshold = threshold
 
+        self._update_count = 0
+        self._is_inited = lambda : self._update_count > 4
         self.df: pd.DataFrame = pd.DataFrame(columns=["efC", "M", "IndexSize"])
         self.params: Optional[np.ndarray] = None  # alpha, overhead
-
     # ------------------------------------------------------------------
     def update(self, efC: float, M: float, index_size: float) -> None:
         self.df.loc[len(self.df)] = {"efC": efC, "M": M, "IndexSize": index_size}
@@ -245,8 +269,13 @@ class IndexSizeEstimator:
             self.df["IndexSize"] = gaussian_filter(
                 self.df["IndexSize"].to_numpy(dtype=float), sigma=self.sigma
             )
-        if len(self.df) >= 5:
-            self._fit_model()
+        if len(self.df) == 5 or len(self.df) % 8 == 0:
+            if len(self.df) != 0:
+                self._fit_model()
+        self._update_count += 1
+        if index_size > self.threshold:
+            print(f"{index_size} > {self.threshold} @@@@@@@@@@@@@@@@@@@@@@@")
+        return index_size <= self.threshold
 
     # ------------------------------------------------------------------
     def estimate(self, efC: float, M: float) -> float:
@@ -264,13 +293,14 @@ class IndexSizeEstimator:
         return self._formula_index_size(efC, M, alpha, overhead) - self.margin
 
     # ------------------------------------------------------------------
-    def binary_classification(self, efC: float, M: float, *,
-                              threshold: float, safe_side: str = "below") -> bool:
+    def binary_classification(self, efC: float, M: float, *, safe_side: str = "below") -> bool:
         pred = self.estimate(efC, M)
+        if self._update_count <= 4:    
+            return True
         if safe_side == "below":
-            return pred <= threshold
+            return pred <= self.threshold
         elif safe_side == "above":
-            return pred >= threshold
+            return pred >= self.threshold
         raise ValueError("safe_side must be 'below' or 'above'.")
 
     # ------------------------------------------------------------------

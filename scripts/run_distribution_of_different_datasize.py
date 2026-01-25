@@ -16,18 +16,21 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 if __name__ == "__main__":
     IMPLS = [
-        # "faiss",
-        "hnswlib",
+        "faiss",
+        # "hnswlib",
     ]
     DATASETS = [
         # "nytimes-256-angular-100p",
         # "nytimes-256-angular-50p",
         # "nytimes-256-angular-10p",
         # "nytimes-256-angular-5p",
-        "nytimes-256-angular-1p",
+        # "nytimes-256-angular-1p",
         # "nytimes-256-angular-1p-hnswlib-random",
         # "nytimes-256-angular-10p-hnswlib-random",
         # "nytimes-256-angular-100p-hnswlib-random",
+        "synthetic-128-angular-100p",
+        "synthetic-128-angular-10p",
+        "synthetic-128-angular-1p",
     ]
     SOLUTIONS = [
         (brute_force, "brute_force"),
@@ -35,8 +38,8 @@ if __name__ == "__main__":
     RECALL_MINS = [
         # 0.85,
         # 0.875,
-        0.90,
-        0.925,
+        # 0.90,
+        # 0.925,
         0.95,
         # 0.975,
         # 0.99,

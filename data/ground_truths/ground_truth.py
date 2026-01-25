@@ -216,5 +216,6 @@ class GroundTruth:
 
     
 if __name__ == "__main__":
-    gd = GroundTruth("faiss", "nytimes-256-angular")
+    gd = GroundTruth("faiss", "deep1M-256-angular")
     print(gd.get(48, 202, 32))
+    print(gd.get(48, 202, 100))

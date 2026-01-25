@@ -6,9 +6,9 @@ import random
 from tqdm import tqdm
 from joblib import Memory
 
-STEP_M = 2
-STEP_EFC = 16
-STEP_EFS = 32
+STEP_M = 4
+STEP_EFC = 64
+STEP_EFS = 128
 
 # memory = Memory("/tmp/grid_search_cache", verbose=0)
 # @memory.cache

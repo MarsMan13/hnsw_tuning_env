@@ -11,7 +11,7 @@ from src.utils import (filename_builder, get_optimal_hyperparameter, load_search
 )
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
-MOCK_SEED = "0_main"
+MOCK_SEED = "42"
 
 def _process_single_metric(
     impl: str,
@@ -129,37 +129,37 @@ def _process_single_metric(
 
 def main():
     SOLUTIONS = [
-        "brute_force",
+        # "brute_force",
         "our_solution",
-        "grid_search",
-        "random_search",
-        "vd_tuner",
-        "optuna",
+        # "grid_search",
+        # "random_search",
+        # "vd_tuner",
+        # "optuna",
     ]
     IMPLS = [
         "faiss",
-        "hnswlib",
+        # "hnswlib",
         # "milvus",
     ]
     DATASETS = [
-        "nytimes-256-angular",
-        "glove-100-angular",
-        "sift-128-euclidean",
+        # "nytimes-256-angular",
+        # "glove-100-angular",
+        # "sift-128-euclidean",
         "youtube-1024-angular",
-        "deep1M-256-angular",
+        # "deep1M-256-angular",
     ]
     SAMPLING_COUNT = [
         10,
-        1,
-        3,
-        5,
+        # 1,
+        # 3,
+        # 5,
     ]
     RECALL_MINS = [
-        0.90, 
-        0.925, 
+        # 0.90, 
+        # 0.925, 
         0.95, 
-        0.975, 
-        0.99
+        # 0.975, 
+        # 0.99
     ]
     # --- Start of multiprocessing modification ---
 

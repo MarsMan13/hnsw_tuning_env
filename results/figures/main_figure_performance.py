@@ -31,12 +31,13 @@ MOCK_SEED = "0_cherry"
 SOL_STYLES = {
     "our_solution":  {"c": "#d62728", "marker": "o", "ls": "-",  "lw": 2.0, "zorder": 10, "label": "CHAT"},
     "vd_tuner":      {"c": "#9467bd", "marker": "s", "ls": "--", "lw": 1.8, "zorder": 5,  "label": "VDTuner"},
+    "eci":           {"c": "#1f77b4", "marker": "X", "ls": "-.", "lw": 1.8, "zorder": 6,  "label": "ECI (GP)"},  # NEW
     "optuna":        {"c": "#8c564b", "marker": "^", "ls": "-.", "lw": 1.8, "zorder": 4,  "label": "Optuna"},
     "nsga":          {"c": "#e377c2", "marker": "D", "ls": ":",  "lw": 1.8, "zorder": 3,  "label": "NSGA-II"},
     "random_search": {"c": "#7f7f7f", "marker": "v", "ls": "--", "lw": 1.8, "zorder": 2,  "label": "Random"},
     "grid_search":   {"c": "#bcbd22", "marker": "P", "ls": ":",  "lw": 1.8, "zorder": 1,  "label": "Grid"},
 }
-SOL_ORDER = ["our_solution", "vd_tuner", "optuna", "nsga", "random_search", "grid_search"]
+SOL_ORDER = ["our_solution", "vd_tuner", "eci", "optuna", "nsga", "random_search", "grid_search"]
 
 ALPHAS_BASE = [0.75, 0.9, 0.925, 0.95]
 ALPHAS_CALC = [0.001, 0.25, 0.5] + ALPHAS_BASE
@@ -160,7 +161,7 @@ def print_csv(results_list):
 # MAIN
 # =============================
 def main():
-    SOLUTIONS = ["brute_force", "our_solution", "grid_search", "random_search", "vd_tuner", "optuna", "nsga"]
+    SOLUTIONS = ["brute_force", "our_solution", "grid_search", "random_search", "vd_tuner", "optuna", "nsga", "eci"]
     IMPLS = ["hnswlib", "faiss"]
     DATASETS = [
         "nytimes-256-angular", "glove-100-angular",

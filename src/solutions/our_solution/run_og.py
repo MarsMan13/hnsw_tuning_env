@@ -214,7 +214,7 @@ class HyperparameterTuner:
         efc_count = 0
         
         # Ternary search for efC
-        while (efc_right - efc_left) > 3:
+        while (efc_right - efc_left) > 3 and efc_count < efc_iter_limit:
             if self.ground_truth.tuning_time > self.tuning_budget:
                 break
             

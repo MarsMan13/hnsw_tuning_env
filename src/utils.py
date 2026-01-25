@@ -250,101 +250,147 @@ def plot_accumulated_timestamp_on_ax(
     ax.set_xlim(0, tuning_budget)
     ax.grid(True)
 
-def plot_multi_accumulated_timestamp(results, dirname, filename, recall_min=None, qps_min=None, tuning_budget=TUNING_BUDGET, seed=SEED, sampling_count = MAX_SAMPLING_COUNT):
+def plot_multi_accumulated_timestamp(
+    results,
+    dirname,
+    filename,
+    recall_min=None,
+    qps_min=None,
+    tuning_budget=TUNING_BUDGET,
+    seed=SEED,
+    sampling_count=MAX_SAMPLING_COUNT,
+):
     assert (recall_min is None) != (qps_min is None), "Only one of recall_min or qps_min should be set."
 
     save_path = _save_path("accumulated_timestamp", dirname, filename, seed, sampling_count)
-    
+
+    # Add ECI and make the plotting robust against unknown solution names
     markers = {
-        "brute_force":'o', 
-        "our_solution": 's', 
-        "random_search": '^', 
-        "grid_search": 'D',
-        "random_search_heuristic": '^', 
-        "grid_search_heuristic": 'D', 
-        "vd_tuner": 'p',
-        "optuna": '*',
-        "nsga": 'x',
-        "test_solution": 'x',
+        "brute_force": "o",
+        "our_solution": "s",
+        "random_search": "^",
+        "grid_search": "D",
+        "random_search_heuristic": "^",
+        "grid_search_heuristic": "D",
+        "vd_tuner": "p",
+        "optuna": "*",
+        "nsga": "x",
+        "eci": "X",  # NEW: ECI marker
+        # test / ablation
+        "test_solution": "x",
         "test_solution2": "*",
-        "10_tests": 's',
-        "5_tests": '^',
-        "3_tests": 'D',
-        "1_tests": 'p',
-        # 'h', '*', 'X', '+', 'v'
+        "10_tests": "s",
+        "5_tests": "^",
+        "3_tests": "D",
+        "1_tests": "p",
     }
+
     colors = {
-        "brute_force": cm.get_cmap('tab10')(0),
-        "our_solution": cm.get_cmap('tab10')(1),
-        "grid_search": cm.get_cmap('tab10')(2),
-        "random_search": cm.get_cmap('tab10')(3),
-        "grid_search_heuristic": cm.get_cmap('tab10')(2),
-        "random_search_heuristic": cm.get_cmap('tab10')(3),
-        "optuna_heuristic": cm.get_cmap('tab10')(5),
-        "vd_tuner": cm.get_cmap('tab10')(4),
-        "optuna": cm.get_cmap('tab10')(5),
-        "nsga": cm.get_cmap('tab10')(6),
-        "test_solution": cm.get_cmap('tab10')(5),
-        "test_solution2": cm.get_cmap('tab10')(6),
-        "10_tests": cm.get_cmap('tab10')(1),
-        "5_tests": cm.get_cmap('tab10')(2),
-        "3_tests": cm.get_cmap('tab10')(3),
-        "1_tests": cm.get_cmap('tab10')(4),
+        "brute_force": cm.get_cmap("tab10")(0),
+        "our_solution": cm.get_cmap("tab10")(1),
+        "grid_search": cm.get_cmap("tab10")(2),
+        "random_search": cm.get_cmap("tab10")(3),
+        "grid_search_heuristic": cm.get_cmap("tab10")(2),
+        "random_search_heuristic": cm.get_cmap("tab10")(3),
+        "vd_tuner": cm.get_cmap("tab10")(4),
+        "optuna": cm.get_cmap("tab10")(5),
+        "nsga": cm.get_cmap("tab10")(6),
+        "eci": cm.get_cmap("tab10")(7),  # NEW: ECI color
+        # test / ablation
+        "test_solution": cm.get_cmap("tab10")(5),
+        "test_solution2": cm.get_cmap("tab10")(6),
+        "10_tests": cm.get_cmap("tab10")(1),
+        "5_tests": cm.get_cmap("tab10")(2),
+        "3_tests": cm.get_cmap("tab10")(3),
+        "1_tests": cm.get_cmap("tab10")(4),
     }
 
-    marker_idx = 0
-    color_idx = 0
+    def pretty_label(solution: str) -> str:
+        # Make paper-friendly legend names
+        if solution == "brute_force":
+            return "oracle_solution"
+        if solution == "eci":
+            return "ECI (GP)"
+        if solution == "vd_tuner":
+            return "VDTuner"
+        if solution == "our_solution":
+            return "CHAT"  # or "\frameworkname{}" if you later render via LaTeX
+        return solution
 
-    plt.figure(figsize=(10, 6)) # Set figure size for better readability
+    def get_marker(solution: str) -> str:
+        # Default marker for unknown keys
+        return markers.get(solution, "v")
+
+    def get_color(solution: str):
+        # Default color for unknown keys (cycle through tab10 deterministically)
+        if solution in colors:
+            return colors[solution]
+        # fallback color based on hash
+        return cm.get_cmap("tab10")(abs(hash(solution)) % 10)
+
+    plt.figure(figsize=(10, 6))
 
     for solution, result in results.items():
-        if recall_min:
+        # Use explicit None checks to avoid truthiness bugs
+        if recall_min is not None:
+            # keep points that satisfy recall constraint, plot best QPS over time
             filtered = [
-                (value[0], value[2])  # (T_record, qps)
+                (value[0], value[2])  # (tuning_time, qps)
                 for _, value in result
                 if value[1] >= recall_min
             ]
-        elif qps_min:
+            y_label = "QPS"
+        else:
+            assert qps_min is not None
+            # keep points that satisfy qps constraint, plot best Recall over time
             filtered = [
-                (value[0], value[1])  # (T_record, recall)
+                (value[0], value[1])  # (tuning_time, recall)
                 for _, value in result
                 if value[2] >= qps_min
             ]
+            y_label = "Recall"
+
         if not filtered:
-            if recall_min : print(f"[{solution}] No results with recall >= {recall_min}")
-            if qps_min : print(f"[{solution}] No results with qps >= {qps_min}")
+            if recall_min is not None:
+                print(f"[{solution}] No results with recall >= {recall_min}")
+            else:
+                print(f"[{solution}] No results with qps >= {qps_min}")
             continue
+
+        # Ensure plot starts from (0,0)
         filtered.insert(0, (0.0, 0.0))
         filtered.sort(key=lambda x: x[0])
-        accumulated = [(0.0, 0.0)] # Start with (0,0) for the plot
-        max_perf = 0.0
+
+        # Build stepwise "best-so-far" curve
+        accumulated = [(0.0, 0.0)]
+        best = 0.0
         for t, perf in filtered:
-            if perf > max_perf:
-                accumulated.append((t, max_perf))
-                max_perf = perf
+            if perf > best:
+                accumulated.append((t, best))
+                best = perf
                 accumulated.append((t, perf))
-        if not accumulated:
-            continue
-        accumulated.append((tuning_budget, max_perf))
+
+        accumulated.append((tuning_budget, best))
         timestamps, perf_values = zip(*accumulated)
+
         plt.plot(
             timestamps,
             perf_values,
-            marker=markers[solution],  # Cycle through markers
-            color=colors[solution],      # Cycle through colors
-            label=solution if solution != "brute_force" else "oracle_solution"
+            marker=get_marker(solution),
+            color=get_color(solution),
+            label=pretty_label(solution),
         )
-        marker_idx += 1
-        color_idx += 1
+
     plt.title("Accumulated TimeStamp Plot")
     plt.xlabel("Time (seconds)")
-    plt.ylabel("QPS" if recall_min else "Recall")
+    plt.ylabel(y_label)
     plt.xlim(0, tuning_budget)
-    plt.grid(True) # Add grid for better readability
-    plt.legend(loc='best') # Display legend, choosing the best location automatically
-    plt.tight_layout() # Adjust plot to prevent labels from overlapping
+    plt.grid(True)
+    plt.legend(loc="best")
+    plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
 
 def plot_timestamp_2(results, solution, filename,
                    recall_min=None, qps_min=None,

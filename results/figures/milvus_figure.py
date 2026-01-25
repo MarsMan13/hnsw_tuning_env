@@ -10,7 +10,7 @@ from src.utils import (
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 
 current_dir = "results/figures"
-MOCK_SEED = 100
+MOCK_SEED = 0 
 
 
 def get_results(impl, dataset, solutions, recall_min=None, qps_min=None, sampling_count=None, tuning_time=TUNING_BUDGET):
