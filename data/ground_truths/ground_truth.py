@@ -1,32 +1,15 @@
 import ast
 import os
 from scipy.interpolate import LinearNDInterpolator
-from scipy.ndimage import gaussian_filter
 from csv import reader
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import random
 from src.constants import SEED, MAX_SAMPLING_COUNT
-
 from src.constants import EFS_MIN, EFS_MAX, TOLERANCE
-        
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-random.seed(SEED)
-
-def masked_gaussian_filter(matrix, sigma):
-    mask = ~np.isnan(matrix)  # True where value exists
-    filled = np.nan_to_num(matrix, nan=0.0)
-    
-    numerator = gaussian_filter(filled, sigma=sigma)
-    denominator = gaussian_filter(mask.astype(float), sigma=sigma)
-
-    with np.errstate(divide='ignore', invalid='ignore'):
-        smoothed = np.divide(numerator, denominator)
-        smoothed[denominator == 0] = np.nan  # 실제 값 없는 위치는 NaN 유지
-
-    return smoothed
+random.seed(SEED)   # SEED = 42
 
 class GroundTruth:
     def __init__(self, impl: str, dataset: str, sampling_count=None):
@@ -37,48 +20,19 @@ class GroundTruth:
         self.init()
         self.tuning_time = 0.0
         self.current_hp = (0, 0)
-        self.searched_cache = dict()    # (M, efC, efS) -> (recall, qps, total_time, build_time, index_size)
-        self.searched_timestamp = dict() # (M, efC, efS) -> T_record
+        self.searched_cache = dict()
+        self.searched_timestamp = dict()
         self._get_count = 0
         
-    def init(self, sigma=1.5):
-        # Step 1: raw data unpacking
+    def init(self):
         configs = list(self.data.keys())
-        points = np.array(configs)  # shape: (N, 3)
+        points = np.array(configs)
         recalls = np.array([v[0] for v in self.data.values()])
         qpss = np.array([v[1] for v in self.data.values()])
         total_times = np.array([v[2] for v in self.data.values()])
         build_times = np.array([v[3] for v in self.data.values()])
         index_sizes = np.array([v[4] for v in self.data.values()])
 
-        # Step 2: smoothing by efS slices
-        unique_M = sorted(set(p[0] for p in configs))
-        unique_efC = sorted(set(p[1] for p in configs))
-        unique_efS = sorted(set(p[2] for p in configs))
-        M_index = {m: i for i, m in enumerate(unique_M)}
-        efC_index = {e: j for j, e in enumerate(unique_efC)}
-        def smooth_metric(metric_values):
-            smoothed_values = np.zeros_like(metric_values)
-            for efS in unique_efS:
-                matrix = np.full((len(unique_M), len(unique_efC)), np.nan)
-                mask = []
-
-                for idx, (M, efC, this_efS) in enumerate(configs):
-                    if this_efS == efS:
-                        i, j = M_index[M], efC_index[efC]
-                        matrix[i, j] = metric_values[idx]
-                        mask.append((idx, i, j))
-                smoothed_matrix = masked_gaussian_filter(matrix, sigma=sigma)
-                for idx, i, j in mask:
-                    smoothed_values[idx] = smoothed_matrix[i, j]
-            return smoothed_values
-        # Step 3: smooth each metric
-        recalls = smooth_metric(recalls)
-        qpss = smooth_metric(qpss)
-        total_times = smooth_metric(total_times)
-        build_times = smooth_metric(build_times)
-        index_sizes = smooth_metric(index_sizes)
-        # Step 4: interpolators
         self.interp_recall = LinearNDInterpolator(points, recalls)
         self.interp_qps = LinearNDInterpolator(points, qpss)
         self.interp_total_time = LinearNDInterpolator(points, total_times)
@@ -207,7 +161,6 @@ class GroundTruth:
     
     def get_efS(self, M, efC, target_recall=None, target_qps=None, method="binary", efS_min=EFS_MIN, efS_max=EFS_MAX, tolerance=TOLERANCE, skip_time=False):
         assert (target_recall is None) != (target_qps is None), "Only one of recall_min or qps_min should be set."
-        # END OF VALIDATION
         if target_recall:
             return self._get_efS_for_recall(M, efC, target_recall, method, efS_min, efS_max, tolerance)
         if target_qps:

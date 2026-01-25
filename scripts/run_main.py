@@ -34,30 +34,21 @@ if __name__ == "__main__":
         "sift-128-euclidean",
         "deep1M-256-angular",
         "youtube-1024-angular",
-        # "msmarco-384-angular",
-        # "dbpediaentity-768-angular",
     ]
     SOLUTIONS = [
-        # (brute_force, "brute_force"),
-        # (grid_search, "grid_search"),
-        # (random_search, "random_search"),
-        # (optuna, "optuna"),
-        # (nsga, "nsga"),
-        # (vd_tuner, "vd_tuner"),
-        # (our_solution, "our_solution"),
+        (brute_force, "brute_force"),
+        (grid_search, "grid_search"),
+        (random_search, "random_search"),
+        (optuna, "optuna"),
+        (nsga, "nsga"),
+        (vd_tuner, "vd_tuner"),
+        (our_solution, "our_solution"),
         (eci, "eci"),
     ]
     RECALL_MINS = [
-        # 0.90,
-        # 0.925,
         0.95,
-        # 0.975,
-        # 0.99,
     ]
     SAMPLING_COUNT = [
-        # 1,
-        # 3,
-        # 5,
         10,
     ]
 

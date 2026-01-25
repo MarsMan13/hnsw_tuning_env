@@ -3,6 +3,7 @@ import sys
 import csv
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
@@ -26,20 +27,31 @@ from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 # Global configs
 # -----------------------------
 CURRENT_DIR = "results/figures"
-MOCK_SEED = "0_cherry"
+SEED = "42"
 
 SOL_STYLES = {
-    "our_solution":  {"c": "#d62728", "marker": "o", "ls": "-",  "lw": 2.0, "zorder": 10, "label": "CHAT"},
-    "vd_tuner":      {"c": "#9467bd", "marker": "s", "ls": "--", "lw": 1.2, "zorder": 5,  "label": "VDTuner"},
-    "eci":           {"c": "#1f77b4", "marker": "X", "ls": "-.", "lw": 1.2, "zorder": 6,  "label": "ECI (GP)"},  # NEW
-    "optuna":        {"c": "#8c564b", "marker": "^", "ls": "-.", "lw": 1.2, "zorder": 4,  "label": "Optuna"},
-    "nsga":          {"c": "#e377c2", "marker": "D", "ls": ":",  "lw": 1.2, "zorder": 3,  "label": "NSGA-II"},
-    "random_search": {"c": "#7f7f7f", "marker": "v", "ls": "--", "lw": 1.2, "zorder": 2,  "label": "Random"},
-    "grid_search":   {"c": "#bcbd22", "marker": "P", "ls": ":",  "lw": 1.2, "zorder": 1,  "label": "Grid"},
+    "our_solution": {"c": "#d62728", "marker": "o", "ls": "-", "lw": 2.0, "zorder": 10, "label": "CHAT"},
+    "vd_tuner": {"c": "#9467bd", "marker": "s", "ls": "--", "lw": 1.2, "zorder": 5, "label": "VDTuner"},
+    "eci": {"c": "#1f77b4", "marker": "X", "ls": "-.", "lw": 1.2, "zorder": 6, "label": "ECI (GP)"},
+    "optuna": {"c": "#8c564b", "marker": "^", "ls": "-.", "lw": 1.2, "zorder": 4, "label": "Optuna"},
+    "nsga": {"c": "#e377c2", "marker": "D", "ls": ":", "lw": 1.2, "zorder": 3, "label": "NSGA-II"},
+    "random_search": {"c": "#3a7d44", "marker": "v", "ls": "--", "lw": 1.2, "zorder": 2, "label": "Random"},
+    "grid_search": {"c": "#bcbd22", "marker": "P", "ls": ":", "lw": 1.2, "zorder": 1, "label": "Grid"},
 }
 SOL_ORDER = ["our_solution", "vd_tuner", "eci", "optuna", "nsga", "random_search", "grid_search"]
 
-ALPHAS_BASE = [0.7, 0.8, 0.9 , 0.95]
+# Failure jitter as a fraction of tuning budget (stable across different budgets)
+FAIL_JITTER_FRAC = {
+    "our_solution": -0.06,
+    "vd_tuner": -0.05,
+    "optuna": -0.08,
+    "eci": -0.02,
+    "nsga": -0.01,
+    "random_search": 0,
+    "grid_search": 0.01,
+}
+
+ALPHAS_BASE = [0.7, 0.8, 0.9, 0.95]
 ALPHAS_CALC = [0.001, 0.25, 0.5] + ALPHAS_BASE
 TAIL_START = 0.95
 
@@ -65,13 +77,11 @@ def draw_wavy_y_break(
     amp: float = 0.012,
     gap: float = 0.028,
     cycles: float = 1.0,
-    lw: float = 0.5,        # [수정] 기본 두께를 얇게 변경
-    color: str = "gray",    # [수정] 기본 색상을 회색으로 변경
-    alpha: float = 0.5      # [수정] 투명도 추가
+    lw: float = 0.5,
+    color: str = "gray",
+    alpha: float = 0.5,
 ):
-    """
-    Draw a 'wavy break' symbol (two sine-like strokes) near the left y-axis at y_data.
-    """
+    """Draw a 'wavy break' symbol (two sine-like strokes) near the left y-axis at y_data."""
     trans = blended_transform_factory(ax.transAxes, ax.transData)
 
     xs = np.linspace(x_center - width / 2.0, x_center + width / 2.0, 200)
@@ -80,9 +90,28 @@ def draw_wavy_y_break(
     y_top = y_data + gap / 2.0 + amp * np.sin(phase)
     y_bot = y_data - gap / 2.0 + amp * np.sin(phase)
 
-    # [수정] color, alpha, lw 적용
-    ax.plot(xs, y_top, transform=trans, color=color, lw=lw, alpha=alpha, clip_on=False, solid_capstyle="round", zorder=50)
-    ax.plot(xs, y_bot, transform=trans, color=color, lw=lw, alpha=alpha, clip_on=False, solid_capstyle="round", zorder=50)
+    ax.plot(
+        xs,
+        y_top,
+        transform=trans,
+        color=color,
+        lw=lw,
+        alpha=alpha,
+        clip_on=False,
+        solid_capstyle="round",
+        zorder=50,
+    )
+    ax.plot(
+        xs,
+        y_bot,
+        transform=trans,
+        color=color,
+        lw=lw,
+        alpha=alpha,
+        clip_on=False,
+        solid_capstyle="round",
+        zorder=50,
+    )
 
 
 def short_ds(name: str) -> str:
@@ -97,7 +126,7 @@ def get_results(impl, dataset, solutions, recall_min=None, qps_min=None, samplin
 
     for solution in solutions:
         filename = filename_builder(solution, impl, dataset, recall_min, qps_min)
-        results = load_search_results(solution, filename, seed=MOCK_SEED, sampling_count=sampling_count)
+        results = load_search_results(solution, filename, seed=SEED, sampling_count=sampling_count)
 
         if solution == "brute_force":
             optimal_hp = get_optimal_hyperparameter(results, recall_min=recall_min, qps_min=qps_min)
@@ -132,7 +161,12 @@ def build_attainment_points(
     alphas_calc=ALPHAS_CALC,
     tail_start=TAIL_START,
 ):
-    """Return attainment points with only the first jump drawn vertically from 0%."""
+    """Return attainment points:
+    - Keep alpha markers (0.001, 0.25, 0.5, 0.7, 0.8, 0.9, 0.95) but avoid stacked points at same time.
+    - For the first attainment, draw a vertical jump at time t1: (t1,0)->(t1,y1).
+    - After that, connect points diagonally/straight as usual.
+    - If no attainment within budget, return a single failure point at (budget, 0%).
+    """
     if (not data) or oracle_best <= 1e-12:
         return [], []
 
@@ -146,7 +180,7 @@ def build_attainment_points(
     valid.sort(key=lambda x: x[0])
 
     if not valid:
-        return [], []
+        return [float(budget)], [0.0]
 
     # Build monotone best-so-far envelope
     times, bests = [], []
@@ -157,8 +191,8 @@ def build_attainment_points(
             times.append(float(t))
             bests.append(float(cur))
 
-    # 1) Alpha-threshold points: keep only the maximum alpha per hit time
-    hit_to_y = {}  # time -> y (ratio)
+    # Alpha-threshold points: keep only maximum y per hit time
+    hit_to_y = {}
     for alpha in alphas_calc:
         target = alpha * oracle_best
         hit = None
@@ -171,7 +205,7 @@ def build_attainment_points(
             if alpha > prev:
                 hit_to_y[hit] = alpha
 
-    # 2) Tail points: add fine-grained ratios after tail_start (time -> max y)
+    # Tail points after tail_start: also merged by time (keep max y)
     tail_target = tail_start * oracle_best
     start_idx = None
     for i, b in enumerate(bests):
@@ -187,14 +221,11 @@ def build_attainment_points(
                 hit_to_y[t] = ratio
 
     if not hit_to_y:
-        return [], []
+        return [float(budget)], [0.0]
 
-    # 3) Build points:
-    #    - Only the first attainment time gets a vertical segment from 0% to y1.
-    #    - After that, connect points normally (diagonal/straight lines).
     plot_points = sorted(hit_to_y.items(), key=lambda x: x[0])
-
     t1, y1 = float(plot_points[0][0]), float(plot_points[0][1])
+
     xs = [t1, t1]
     ys = [0.0, y1]
 
@@ -233,8 +264,29 @@ def plot_attainment_on_ax(
             budget=tuning_budget,
         )
 
+        if not xs:
+            continue
+
         ys_vis = [squash_y(y) for y in ys_real]
-        if xs:
+
+        # Failure case: only one point at 0% within budget -> plot a single jittered marker
+        if len(xs) == 1 and abs(ys_real[0]) < 1e-12:
+            jitter = FAIL_JITTER_FRAC.get(sol, 0.0) * float(tuning_budget)
+            xj = float(tuning_budget) + float(jitter)
+            xj = max(0.0, xj)
+
+            ax.plot(
+                [xj],
+                [ys_vis[0]],
+                marker=style["marker"],
+                color=style["c"],
+                linestyle="None",
+                markersize=6,
+                zorder=style["zorder"],
+                label=style["label"],
+                alpha=0.9,
+            )
+        else:
             ax.plot(
                 xs,
                 ys_vis,
@@ -265,17 +317,15 @@ def plot_attainment_on_ax(
     ax.set_ylim(0.0, 1.05)
     ax.set_yticks(display_yticks_vis)
     if show_ylabel:
-        ax.set_yticklabels([f"{int(y*100)}%" for y in display_yticks_real], fontsize=12)
+        ax.set_yticklabels([f"{int(y * 100)}%" for y in display_yticks_real], fontsize=12)
     else:
         ax.set_yticklabels([])
 
     # Grid
     ax.grid(True, which="major", linestyle=":", linewidth=0.7, color="gray", alpha=0.8)
 
-    # Reference lines (가로선)
+    # Reference lines
     break_y_vis = squash_y(BOUNDARY_REAL)
-    
-    # [수정] 75% 경계선을 연하고 얇게 (gray, lw=0.5, alpha=0.5)
     ax.axhline(break_y_vis, linestyle=":", linewidth=0.7, color="gray", alpha=0.8, zorder=0)
 
     top_y_vis = squash_y(1.0)
@@ -283,51 +333,87 @@ def plot_attainment_on_ax(
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.axvline(tuning_budget, linestyle="--", color="gray", linewidth=1.0)
+    ax.axvline(tuning_budget, linestyle=":", color="gray", linewidth=0.7, alpha=0.8, zorder=0)
 
-    # --- Wavy compression mark ---
+    # Wavy compression mark
     y_mid_real = BOUNDARY_REAL / 2.0
     y_mid_vis = squash_y(y_mid_real)
     if show_ylabel:
-        # [수정] 물결 무늬도 연하게 호출 (위에서 default를 gray/0.5로 바꿨으므로 인자만 맞춰줌)
         draw_wavy_y_break(
-            ax, 
-            y_data=y_mid_vis, 
-            x_center=-0.005, 
-            width=0.05, 
-            amp=0.015, 
-            gap=0.028, 
-            cycles=1.0, 
-            lw=0.9,           # 얇게
-            color="black",     # 회색
-            alpha=0.8         # 투명도
+            ax,
+            y_data=y_mid_vis,
+            x_center=-0.005,
+            width=0.05,
+            amp=0.015,
+            gap=0.028,
+            cycles=1.0,
+            lw=0.9,
+            color="black",
+            alpha=0.8,
         )
 
 
 def setup_fonts():
     """Load Libertine fonts if present."""
     font_path_r = f"{CURRENT_DIR}/LinLibertine_R.ttf"
-    fm.fontManager.addfont(font_path_r)
+    if os.path.exists(font_path_r):
+        fm.fontManager.addfont(font_path_r)
 
     font_path_b = f"{CURRENT_DIR}/LinLibertine_B.ttf"
     if os.path.exists(font_path_b):
         fm.fontManager.addfont(font_path_b)
 
-    font_prop = fm.FontProperties(fname=font_path_r)
-    plt.rcParams["font.family"] = font_prop.get_name()
+    if os.path.exists(font_path_r):
+        font_prop = fm.FontProperties(fname=font_path_r)
+        plt.rcParams["font.family"] = font_prop.get_name()
     plt.rcParams["axes.unicode_minus"] = False
 
 
 def build_global_legend(fig):
-    """Global legend with CHAT first and bold."""
+    """Global legend with line+marker handles (method identity)."""
     handles = []
     labels = []
+
     for sol in SOL_ORDER:
         s = SOL_STYLES[sol]
-        handles.append(Line2D([0], [0], color=s["c"], marker=s["marker"], ls=s["ls"], lw=s["lw"]))
+
+        # CHAT 먼저
         if sol == "our_solution":
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=s["c"],
+                    marker=s["marker"],
+                    linestyle=s["ls"],
+                    linewidth=s["lw"],
+                )
+            )
             labels.append("CHAT (Our solution)")
+
+            # --- Oracle reference 바로 뒤에 삽입 ---
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color="blue",
+                    linestyle="--",
+                    linewidth=1.5,
+                )
+            )
+            labels.append("Oracle")
+
         else:
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=s["c"],
+                    marker=s["marker"],
+                    linestyle=s["ls"],
+                    linewidth=s["lw"],
+                )
+            )
             labels.append(s["label"])
 
     leg = fig.legend(
@@ -335,13 +421,15 @@ def build_global_legend(fig):
         labels,
         loc="upper center",
         bbox_to_anchor=(0.485, 0.975),
-        ncol=len(SOL_ORDER),
+        ncol=len(labels),
         fontsize=19,
         frameon=False,
     )
+
     for t in leg.get_texts():
         if t.get_text().startswith("CHAT"):
             t.set_fontweight("bold")
+
 
 
 def main():
@@ -403,7 +491,7 @@ def main():
 
     # Row/column labels
     fig.text(0.015, 0.71, "Hnswlib", va="center", ha="center", rotation="vertical", fontsize=24, weight="bold")
-    fig.text(0.015, 0.30, "Faiss",   va="center", ha="center", rotation="vertical", fontsize=24, weight="bold")
+    fig.text(0.015, 0.30, "Faiss", va="center", ha="center", rotation="vertical", fontsize=24, weight="bold")
 
     label_opts = {"va": "center", "ha": "center", "rotation": "vertical", "fontsize": 18, "weight": "bold"}
     fig.text(0.035, 0.78, "QPS", **label_opts)

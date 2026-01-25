@@ -29,27 +29,23 @@ if __name__ == "__main__":
     ]
     DATASETS = [
         "nytimes-256-angular",
-        # "glove-100-angular",
-        # "sift-128-euclidean",
-        # "deep1M-256-angular",
-        # "youtube-1024-angular",
+        "glove-100-angular",
+        "sift-128-euclidean",
+        "deep1M-256-angular",
+        "youtube-1024-angular",
     ]
     SOLUTIONS = [
-        # (brute_force, "brute_force"),
+        (brute_force, "brute_force"),
         (grid_search, "grid_search"),
-        # (random_search, "random_search"),
-        # (our_solution, "our_solution"),
-        # (vd_tuner, "vd_tuner"),
-        # (nsga, "nsga"),
-        # (optuna, "optuna"),
-        # (eci, "eci"),
+        (random_search, "random_search"),
+        (our_solution, "our_solution"),
+        (vd_tuner, "vd_tuner"),
+        (nsga, "nsga"),
+        (optuna, "optuna"),
+        (eci, "eci"),
     ]
     RECALL_MINS = [
-        # 0.90,
-        # 0.925,
         0.95,
-        # 0.975,
-        # 0.99,
     ]
     SAMPLING_COUNT = [
         10,
@@ -62,9 +58,9 @@ if __name__ == "__main__":
     ):
         tasks.append((impl, dataset, solution_func, solution_name, recall_min, None, sampling_count))
     # Case 2: when qps_min is active
-    # for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
-    #     IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
-    # ):
-    #     for qps_min in get_qps_metrics_dataset(impl, dataset):
-    #         tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
+    for impl, dataset, (solution_func, solution_name), sampling_count in itertools.product(
+        IMPLS, DATASETS, SOLUTIONS, SAMPLING_COUNT
+    ):
+        for qps_min in get_qps_metrics_dataset(impl, dataset):
+            tasks.append((impl, dataset, solution_func, solution_name, None, qps_min, sampling_count))
     run_experiments(tasks=tasks, num_cores=15)

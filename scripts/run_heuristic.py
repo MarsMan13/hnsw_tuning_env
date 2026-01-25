@@ -12,15 +12,15 @@ from scripts import run_experiments
 from scripts import IMPLS, DATASETS, SOLUTIONS, RECALL_MINS, TUNING_BUDGET, SEED
 
 from src.solutions.our_solution.stats import Stats
-from src.solutions.our_solution.run import run as run 
-from src.solutions.our_solution.run_heuristic1 import run as run_heuristic1
+# from src.solutions.our_solution.run import run as run 
+from src.solutions.our_solution.run_heuristic3 import run
 from data.ground_truths.get_qps_dataset import get_qps_metrics_dataset
 from src.solutions import postprocess_results
 from src.utils import is_already_saved
     
 # SOLUTIONS = [
 #     (run, "test_solution"),
-#     (run_heuristic1, "test_solution2"),
+#     (run_heuristic2, "test_solution2"),
 # ]
 
 def worker_function(
@@ -28,11 +28,11 @@ def worker_function(
     ):
 
     # run.py
-    _, search_stats, efS_stats = run_heuristic1(
+    _, search_stats, efC_stats = run(
         impl=impl, dataset=dataset, recall_min=recall_min, qps_min=qps_min,
         sampling_count=sampling_count, stats=True
     )
-    return search_stats.stats["exploration_ratio"], efS_stats
+    return search_stats.stats["exploration_ratio"], efC_stats
 
 if __name__ == "__main__":
     IMPLS = [
@@ -45,8 +45,6 @@ if __name__ == "__main__":
         "sift-128-euclidean",
         "youtube-1024-angular",
         "deep1M-256-angular",
-        # "msmarco-384-angular",
-        # "dbpediaentity-768-angular",
     ]
     RECALL_MIN = 0.95
     QPS_MIN = "q75"

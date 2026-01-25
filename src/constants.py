@@ -1,19 +1,7 @@
 M_MIN, M_MAX = 4, 64
 EFS_MIN, EFS_MAX = 10, 1024
+EFC_MIN, EFC_MAX = 8, 1024
 MAX_SAMPLING_COUNT = 10
 TOLERANCE = 0.005
-####
-IMPL = "hnswlib"
-DATASET = "nytimes-256-angular"
-RECALL_MIN = 0.90
-#****************************************
-#! **************************************
-EFC_MIN, EFC_MAX = 8, 1024
-# EFC_MIN, EFC_MAX = 8, 512
-#! **************************************
-SEED = 189
-# SEED = 42
+SEED = 42
 TUNING_BUDGET = 3600 * 4    # hours
-#****************************************
-BUILD_TIME_BUDGET = 120 # seconds
-INDEX_SIZE_BUDGET = 1e9 / 3 * 2
